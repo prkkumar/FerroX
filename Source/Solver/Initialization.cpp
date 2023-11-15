@@ -154,19 +154,19 @@ void InitializePandRho(Array<MultiFab, AMREX_SPACEDIM> &P_old,
            
                 } else {
 
-                   hole_den_arr(i,j,k) = intrinsic_carrier_concentration;
-                   e_den_arr(i,j,k) = intrinsic_carrier_concentration;
+                   e_den_arr(i,j,k) = donor_doping; //intrinsic_carrier_concentration;
+                   hole_den_arr(i,j,k) = intrinsic_carrier_concentration*intrinsic_carrier_concentration/donor_doping;
 
                 }
              }
 
       	      //If in channel, set acceptor doping, else (Source/Drain) set donor doping
               if (mask(i,j,k) == 3.0) {
-      	           acceptor_den_arr(i,j,k) = acceptor_doping; 
-                   donor_den_arr(i,j,k) = 0.0;
-              } else { // Source / Drain
 		   acceptor_den_arr(i,j,k) = 0.0; 
 	           donor_den_arr(i,j,k) = donor_doping;
+              } else { // Source / Drain
+      	           acceptor_den_arr(i,j,k) = acceptor_doping; 
+                   donor_den_arr(i,j,k) = 0.0;
 	      }
               charge_den_arr(i,j,k) = q*(hole_den_arr(i,j,k) - e_den_arr(i,j,k) - acceptor_den_arr(i,j,k) + donor_den_arr(i,j,k));
 
