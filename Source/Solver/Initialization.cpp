@@ -168,8 +168,8 @@ void InitializePandRho(Array<MultiFab, AMREX_SPACEDIM> &P_old,
            
                 } else {
 
-                   hole_den_arr(i,j,k) = intrinsic_carrier_concentration;
-                   e_den_arr(i,j,k) = intrinsic_carrier_concentration;
+                   e_den_arr(i,j,k) = donor_doping;
+                   hole_den_arr(i,j,k) = intrinsic_carrier_concentration*intrinsic_carrier_concentration/donor_doping;
 
                 }
              }
