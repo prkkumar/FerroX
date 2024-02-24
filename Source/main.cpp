@@ -146,8 +146,8 @@ void main_main (c_FerroX& rFerroX)
     angle_theta.setVal(0.);
 
     //Initialize material mask
-    InitializeMaterialMask(MaterialMask, geom, prob_lo, prob_hi);
-    //InitializeMaterialMask(rFerroX, geom, MaterialMask);
+    //InitializeMaterialMask(MaterialMask, geom, prob_lo, prob_hi);
+    InitializeMaterialMask(rFerroX, geom, MaterialMask);
     if(Coordinate_Transformation == 1){
        Initialize_tphase_Mask(rFerroX, geom, tphaseMask);
        Initialize_Euler_angles(rFerroX, geom, angle_alpha, angle_beta, angle_theta);
@@ -324,7 +324,10 @@ void main_main (c_FerroX& rFerroX)
 
             iter = iter + 1;
             amrex::Print() << iter << " iterations :: err = " << err << std::endl;
-            if( iter > 20 ) amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
+            if( iter > 200 ) {
+	    	amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
+	    	amrex::Abort();
+	    }
         }
     }
     
@@ -446,7 +449,10 @@ void main_main (c_FerroX& rFerroX)
 
                 iter = iter + 1;
                 amrex::Print() << iter << " iterations :: err = " << err << std::endl;
-                if( iter > 20 ) amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
+                if( iter > 200 ) {
+			amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
+			amrex::Abort();
+		}
             }
         }
         
@@ -517,7 +523,10 @@ void main_main (c_FerroX& rFerroX)
 
                     iter = iter + 1;
                     amrex::Print() << iter << " iterations :: err = " << err << std::endl;
-                    if( iter > 20 ) amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
+                    if( iter > 200 ) {
+		    	amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
+		    	amrex::Abort();
+		    }
                 }
             }
             
@@ -677,7 +686,10 @@ void main_main (c_FerroX& rFerroX)
 
                    iter = iter + 1;
                    amrex::Print() << iter << " iterations :: err = " << err << std::endl;
-                   if( iter > 20 ) amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
+                   if( iter > 200 ) {
+		   	amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
+		   	amrex::Abort();
+		   }
                }
            }
        

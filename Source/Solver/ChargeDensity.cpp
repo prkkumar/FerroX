@@ -47,7 +47,12 @@ void ComputeRho(MultiFab&      PoissonPhi,
       
                 //Following: http://dx.doi.org/10.1063/1.4825209
 
-                amrex::Real Ef = 0.0;
+                amrex::Real Ef;
+		if (mask(i,j,k) == 2.0) {//lower SC layer, which is grounded
+                   Ef = 0.0;
+                } else if (mask(i,j,k) == 3.0) { // upper SC layer, touches metal electrode with Phi_BC_hi potential
+                   Ef = -Phi_Bc_hi;
+                }
                 amrex::Real Eg = bandgap;
                 amrex::Real Chi = affinity;
                 amrex::Real phi_ref = Chi + 0.5*Eg + 0.5*kb*T*log(Nc/Nv)/q;
@@ -76,8 +81,8 @@ void ComputeRho(MultiFab&      PoissonPhi,
                   e_den_arr(i,j,k) = Nc*FD_half(eta_n);
                   hole_den_arr(i,j,k) = Nv*FD_half(eta_p);
          
-                  acceptor_den_arr(i,j,k) = acceptor_doping/(1.0 + g_A*exp((-q*Ef + q*Ea + q*phi_ref - q*Chi - q*Eg - q*phi(i,j,k))/(kb*T)));
-                  donor_den_arr(i,j,k) = donor_doping/(1.0 + g_D*exp( (q*Ef + q*Ed - q*phi_ref + q*Chi + q*phi(i,j,k)) / (kb*T) ));
+                  acceptor_den_arr(i,j,k) = acceptor_doping;///(1.0 + g_A*exp((-q*Ef + q*Ea + q*phi_ref - q*Chi - q*Eg - q*phi(i,j,k))/(kb*T)));
+                  donor_den_arr(i,j,k) = donor_doping;///(1.0 + g_D*exp( (q*Ef + q*Ed - q*phi_ref + q*Chi + q*phi(i,j,k)) / (kb*T) ));
 
                   } else {
 

@@ -453,10 +453,21 @@ void InitializeFerroXNamespace(const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM
      // Band gap Eg = 1.12eV
      // 1eV = 1.602e-19 J
 
-     Nc = 2.8e25;
-     Nv = 1.83e25;
-     bandgap = 1.12; //eV
-     affinity = 4.05; //eV
+//     /* Silicon */
+//     Nc = 2.8e25;
+//     Nv = 1.83e25;
+//     bandgap = 1.12; //eV
+//     affinity = 4.05; //eV
+//     q = 1.602e-19;
+//     kb = 1.38e-23; // Boltzmann constant
+//     T = 300; // Room Temp
+
+     
+     /* BTO */
+     Nc = 4.640317153991026e+26;
+     Nv = 1.9697595861578862e+30;
+     bandgap = 1.25; //eV
+     affinity = 7.2; //eV
      q = 1.602e-19;
      kb = 1.38e-23; // Boltzmann constant
      T = 300; // Room Temp
@@ -482,7 +493,7 @@ void InitializeFerroXNamespace(const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM
      pp.query("use_work_function",use_work_function);
     
      if (use_work_function == 1){
-        metal_work_function = 4.85; //eV
+        metal_work_function = 5.2; // Si is 4.85 eV
         pp.query("metal_work_function", metal_work_function);
      } 
 
