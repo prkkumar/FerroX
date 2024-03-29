@@ -521,3 +521,27 @@ void SetPhiBC_z(MultiFab& PoissonPhi, const amrex::GpuArray<int, AMREX_SPACEDIM>
     PoissonPhi.FillBoundary(geom.periodicity());
 }
 
+
+void SetNucleation(Array<MultiFab, AMREX_SPACEDIM> &P_old, MultiFab& NucleationMask)
+{
+    for (MFIter mfi(P_old[0]); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+
+        const Array4<Real> &pOld_p = P_old[0].array(mfi);
+        const Array4<Real> &pOld_q = P_old[1].array(mfi);
+        const Array4<Real> &pOld_r = P_old[2].array(mfi);
+        const Array4<Real>& mask = NucleationMask.array(mfi);
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+        {
+	       if (mask(i,j,k) == 1.) {
+	           pOld_r(i,j,k) = Remnant_P[2];
+	       }
+	       if (mask(i,j,k) == -1.) {
+	           pOld_r(i,j,k) = -Remnant_P[2];
+	       }
+        });
+    }
+
+}

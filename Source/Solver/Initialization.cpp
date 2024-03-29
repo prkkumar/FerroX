@@ -2,6 +2,17 @@
 #include "Utils/eXstaticUtils/eXstaticUtil.H"
 #include "../../Utils/SelectWarpXUtils/WarpXUtil.H"
 
+// Approximation to the Fermi-Dirac Integral of Order 1/2
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real FD_half(const amrex::Real eta)
+{
+    amrex::Real nu = std::pow(eta, 4.0) + 50.0 + 33.6 * eta * (1.0 - 0.68 * exp(-0.17 * std::pow((eta + 1.0), 2.0)));
+    amrex::Real xi = 3.0 * sqrt(3.14)/(4.0 * std::pow(nu, 3./8.));
+    amrex::Real integral = std::pow(exp(-eta) + xi, -1.0);
+    return integral;
+}
+
+
 // INITIALIZE rho in SC region
 void InitializePandRho(Array<MultiFab, AMREX_SPACEDIM> &P_old,
                    MultiFab&   Gamma,
@@ -148,14 +159,65 @@ void InitializePandRho(Array<MultiFab, AMREX_SPACEDIM> &P_old,
              //SC region
              if (mask(i,j,k) >= 2.0) {
 
-                hole_den_arr(i,j,k) = intrinsic_carrier_concentration;
-                e_den_arr(i,j,k) = intrinsic_carrier_concentration;
-                acceptor_den_arr(i,j,k) = acceptor_doping;
-                donor_den_arr(i,j,k) = donor_doping;
+	     //Following: http://dx.doi.org/10.1063/1.4825209
+
+                amrex::Real Ef;
+                if (mask(i,j,k) == 2.0){
+                   Ef = 0.0;
+                } else {
+                   Ef = -q*Phi_Bc_hi;
+                }
+                 
+		amrex::Real Phi = 0.0;
+	     	amrex::Real Eg = bandgap;
+                amrex::Real Chi = affinity;
+                amrex::Real phi_ref = Chi + 0.5*Eg + 0.5*kb*T*log(Nc/Nv)/q;
+                amrex::Real Ec_corr = -q*(Phi - phi_ref) - Chi*q;
+                amrex::Real Ev_corr = Ec_corr - q*Eg;
+
+                //g_A is the acceptor ground state degeneracy factor and is equal to 4
+                //because in most semiconductors each acceptor level can accept one hole of either spin
+                //and the impurity level is doubly degenerate as a result of the two degenerate valence bands
+                //(heavy hole and light hole bands) at the \Gamma point.
+
+                //g_D is the donor ground state degeneracy factor and is equal to 2
+                //because a donor level can accept one electron with either spin or can have no electron when filled.
+
+                amrex::Real g_A = 4.0;
+                amrex::Real g_D = 2.0;
+
+                amrex::Real Ea = acceptor_ionization_energy;
+                amrex::Real Ed = donor_ionization_energy;
+
+                if(use_Fermi_Dirac == 1){
+                  //Fermi-Dirac
+
+                  Real eta_n = -(Ec_corr - q*Ef)/(kb*T);
+                  Real eta_p = -(q*Ef - Ev_corr)/(kb*T);
+                  e_den_arr(i,j,k) = Nc*FD_half(eta_n);
+                  hole_den_arr(i,j,k) = Nv*FD_half(eta_p);
+
+                  acceptor_den_arr(i,j,k) = acceptor_doping/(1.0 + g_A*exp((-q*Ef + q*Ea + q*phi_ref - q*Chi - q*Eg - q*Phi)/(kb*T)));
+                  donor_den_arr(i,j,k) = donor_doping/(1.0 + g_D*exp( (q*Ef + q*Ed - q*phi_ref + q*Chi + q*Phi) / (kb*T) ));
+
+                  } else {
+
+	          //Maxwell-Boltzmann
+                  e_den_arr(i,j,k) =    Nc*exp( -(Ec_corr - q*Ef) / (kb*T) );
+                  hole_den_arr(i,j,k) = Nv*exp( -(q*Ef - Ev_corr) / (kb*T) );
+
+                  acceptor_den_arr(i,j,k) = acceptor_doping/(1.0 + g_A*exp((-q*Ef + q*Ea + q*phi_ref - q*Chi - q*Eg - q*Phi)/(kb*T)));
+                  donor_den_arr(i,j,k) = donor_doping/(1.0 + g_D*exp( (q*Ef + q*Ed - q*phi_ref + q*Chi + q*Phi) / (kb*T) ));
+
+                }
+
+                charge_den_arr(i,j,k) = q*(hole_den_arr(i,j,k) - e_den_arr(i,j,k) - acceptor_den_arr(i,j,k) + donor_den_arr(i,j,k));
+
+	     } else {
+
+                charge_den_arr(i,j,k) = 0.0;
+
              }
-
-             charge_den_arr(i,j,k) = q*(hole_den_arr(i,j,k) - e_den_arr(i,j,k) - acceptor_den_arr(i,j,k) + donor_den_arr(i,j,k));
-
         });
     }
     for (int i = 0; i < 3; i++){
@@ -381,4 +443,49 @@ void Initialize_Euler_angles(c_FerroX& rFerroX, const Geometry& geom, MultiFab& 
 	angle_beta.FillBoundary(geom.periodicity());
 	angle_theta.FillBoundary(geom.periodicity());
 }
+
+// initialization of nucleation site mask with parser
+void Initialize_nucleation_Mask(c_FerroX& rFerroX, const Geometry& geom, MultiFab& NucleationMask)
+{ 
+    auto& rGprop = rFerroX.get_GeometryProperties();
+    Box const& domain = rGprop.geom.Domain();
+
+    const auto dx = rGprop.geom.CellSizeArray();
+    const auto& real_box = rGprop.geom.ProbDomain();
+    const auto iv = NucleationMask.ixType().toIntVect();
+
+    for (MFIter mfi(NucleationMask, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const auto& mask_arr = NucleationMask.array(mfi);
+        const auto& bx = mfi.tilebox();
+
+	std::string nucleation_mask_s;
+	std::unique_ptr<amrex::Parser> nucleation_mask_parser;
+        std::string m_str_nucleation_geom_function;
+
+	ParmParse pp_mask("nucleation_geom");
+
+
+	if (pp_mask.query("nucleation_geom_function(x,y,z)", m_str_nucleation_geom_function) ) {
+            nucleation_mask_s = "parse_nucleation_geom_function";
+        }
+
+        if (nucleation_mask_s == "parse_nucleation_geom_function") {
+            Store_parserString(pp_mask, "nucleation_geom_function(x,y,z)", m_str_nucleation_geom_function);
+            nucleation_mask_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_nucleation_geom_function,{"x","y","z"}));
+        }
+
+        const auto& macro_parser = nucleation_mask_parser->compile<3>();
+
+        amrex::ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv,macro_parser,mask_arr);
+        });
+
+    }
+	NucleationMask.FillBoundary(geom.periodicity());
+}
+
 

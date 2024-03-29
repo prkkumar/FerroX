@@ -47,7 +47,12 @@ void ComputeRho(MultiFab&      PoissonPhi,
       
                 //Following: http://dx.doi.org/10.1063/1.4825209
 
-                amrex::Real Ef = 0.0;
+	        amrex::Real Ef;
+                if (mask(i,j,k) == 2.0){
+		   Ef = 0.0;
+		} else {
+		   Ef = -q*Phi_Bc_hi;
+		}
                 amrex::Real Eg = bandgap;
                 amrex::Real Chi = affinity;
                 amrex::Real phi_ref = Chi + 0.5*Eg + 0.5*kb*T*log(Nc/Nv)/q;
@@ -62,8 +67,14 @@ void ComputeRho(MultiFab&      PoissonPhi,
                 //g_D is the donor ground state degeneracy factor and is equal to 2
                 //because a donor level can accept one electron with either spin or can have no electron when filled.
 
-                amrex::Real g_A = 4.0;
-                amrex::Real g_D = 2.0;
+                amrex::Real g_A, g_D;
+	        if (complete_ionization == 0){
+		    g_A	= 4.0;
+		    g_D = 2.0;
+		} else {
+                    g_A = 0.0; //acceptor_den_arr(i,j,k) = acceptor_doping
+                    g_D = 0.0; //donor_den_arr(i,j,k) = donor_doping
+		}
 
                 amrex::Real Ea = acceptor_ionization_energy;  
                 amrex::Real Ed = donor_ionization_energy; 

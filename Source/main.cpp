@@ -121,6 +121,7 @@ void main_main (c_FerroX& rFerroX)
     MultiFab charge_den(ba, dm, 1, 0);
     MultiFab MaterialMask(ba, dm, 1, 1);
     MultiFab tphaseMask(ba, dm, 1, 1);
+    MultiFab NucleationMask(ba, dm, 1, 1);
     MultiFab angle_alpha(ba, dm, 1, 0);
     MultiFab angle_beta(ba, dm, 1, 0);
     MultiFab angle_theta(ba, dm, 1, 0);
@@ -141,13 +142,14 @@ void main_main (c_FerroX& rFerroX)
     PoissonPhi.setVal(0.);
     PoissonRHS.setVal(0.);
     tphaseMask.setVal(0.);
+    NucleationMask.setVal(0.);
     angle_alpha.setVal(0.);
     angle_beta.setVal(0.);
     angle_theta.setVal(0.);
 
     //Initialize material mask
-    InitializeMaterialMask(MaterialMask, geom, prob_lo, prob_hi);
-    //InitializeMaterialMask(rFerroX, geom, MaterialMask);
+    //InitializeMaterialMask(MaterialMask, geom, prob_lo, prob_hi);
+    InitializeMaterialMask(rFerroX, geom, MaterialMask);
     if(Coordinate_Transformation == 1){
        Initialize_tphase_Mask(rFerroX, geom, tphaseMask);
        Initialize_Euler_angles(rFerroX, geom, angle_alpha, angle_beta, angle_theta);
@@ -277,6 +279,9 @@ void main_main (c_FerroX& rFerroX)
 
     //InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, geom, prob_lo, prob_hi);//old
     InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, MaterialMask, tphaseMask, n_cell, geom, prob_lo, prob_hi);//mask based
+   
+    Initialize_nucleation_Mask(rFerroX, geom, NucleationMask); 
+    SetNucleation(P_old, NucleationMask);
     
     //Obtain self consisten Phi and rho
     Real tol = 1.e-5;
@@ -352,7 +357,7 @@ void main_main (c_FerroX& rFerroX)
 
         MultiFab::Copy(Plt, beta_cc, 0, 11, 1, 0);
         MultiFab::Copy(Plt, MaterialMask, 0, 12, 1, 0);
-        MultiFab::Copy(Plt, tphaseMask, 0, 13, 1, 0);
+        MultiFab::Copy(Plt, NucleationMask, 0, 13, 1, 0);
         MultiFab::Copy(Plt, angle_alpha, 0, 14, 1, 0);
         MultiFab::Copy(Plt, angle_beta, 0, 15, 1, 0);
         MultiFab::Copy(Plt, angle_theta, 0, 16, 1, 0);
@@ -385,6 +390,7 @@ void main_main (c_FerroX& rFerroX)
             P_new_pre[i].FillBoundary(geom.periodicity()); 
         }  
 
+        SetNucleation(P_new_pre, NucleationMask);
 	/**
          * \brief dst = a*x + b*y
          */
