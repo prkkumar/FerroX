@@ -19,6 +19,8 @@ void InitializePandRho(Array<MultiFab, AMREX_SPACEDIM> &P_old,
                    MultiFab&   rho,
                    MultiFab&   e_den,
                    MultiFab&   p_den,
+                   MultiFab&   acceptor_den,
+                   MultiFab&   donor_den,
 		   const MultiFab& MaterialMask,
 		   const MultiFab& tphaseMask,
                    const amrex::GpuArray<int, AMREX_SPACEDIM>& n_cell,
@@ -143,9 +145,6 @@ void InitializePandRho(Array<MultiFab, AMREX_SPACEDIM> &P_old,
         });
         // Calculate charge density from Phi, Nc, Nv, Ec, and Ev
 
-	MultiFab acceptor_den(rho.boxArray(), rho.DistributionMap(), 1, 0);
-	MultiFab donor_den(rho.boxArray(), rho.DistributionMap(), 1, 0);
-
         const Array4<Real>& hole_den_arr = p_den.array(mfi);
         const Array4<Real>& e_den_arr = e_den.array(mfi);
         const Array4<Real>& charge_den_arr = rho.array(mfi);
@@ -197,17 +196,27 @@ void InitializePandRho(Array<MultiFab, AMREX_SPACEDIM> &P_old,
                   e_den_arr(i,j,k) = Nc*FD_half(eta_n);
                   hole_den_arr(i,j,k) = Nv*FD_half(eta_p);
 
-                  acceptor_den_arr(i,j,k) = acceptor_doping/(1.0 + g_A*exp((-q*Ef + q*Ea + q*phi_ref - q*Chi - q*Eg - q*Phi)/(kb*T)));
-                  donor_den_arr(i,j,k) = donor_doping/(1.0 + g_D*exp( (q*Ef + q*Ed - q*phi_ref + q*Chi + q*Phi) / (kb*T) ));
-
+		  if (complete_ionization == 0){
+                     acceptor_den_arr(i,j,k) = acceptor_doping/(1.0 + g_A*exp((-q*Ef + q*Ea + q*phi_ref - q*Chi - q*Eg - q*Phi)/(kb*T)));
+                     donor_den_arr(i,j,k) = donor_doping/(1.0 + g_D*exp( (q*Ef + q*Ed - q*phi_ref + q*Chi + q*Phi) / (kb*T) ));
                   } else {
+                     acceptor_den_arr(i,j,k) = acceptor_doping;
+                     donor_den_arr(i,j,k) = donor_doping;
+                  }
+
+                } else {
 
 	          //Maxwell-Boltzmann
                   e_den_arr(i,j,k) =    Nc*exp( -(Ec_corr - q*Ef) / (kb*T) );
                   hole_den_arr(i,j,k) = Nv*exp( -(q*Ef - Ev_corr) / (kb*T) );
 
-                  acceptor_den_arr(i,j,k) = acceptor_doping/(1.0 + g_A*exp((-q*Ef + q*Ea + q*phi_ref - q*Chi - q*Eg - q*Phi)/(kb*T)));
-                  donor_den_arr(i,j,k) = donor_doping/(1.0 + g_D*exp( (q*Ef + q*Ed - q*phi_ref + q*Chi + q*Phi) / (kb*T) ));
+		  if (complete_ionization == 0){
+                     acceptor_den_arr(i,j,k) = acceptor_doping/(1.0 + g_A*exp((-q*Ef + q*Ea + q*phi_ref - q*Chi - q*Eg - q*Phi)/(kb*T)));
+                     donor_den_arr(i,j,k) = donor_doping/(1.0 + g_D*exp( (q*Ef + q*Ed - q*phi_ref + q*Chi + q*Phi) / (kb*T) ));
+                  } else {
+                     acceptor_den_arr(i,j,k) = acceptor_doping;
+                     donor_den_arr(i,j,k) = donor_doping;
+                  }
 
                 }
 

@@ -87,6 +87,8 @@ void dF_dPhi(MultiFab&            alpha_cc,
              MultiFab&            rho,
              MultiFab&            e_den,
              MultiFab&            p_den,
+	     MultiFab&   acceptor_den,
+             MultiFab&   donor_den,
 	     MultiFab&            MaterialMask,
              MultiFab& angle_alpha, MultiFab& angle_beta, MultiFab& angle_theta,
              const          Geometry& geom,
@@ -102,7 +104,7 @@ void dF_dPhi(MultiFab&            alpha_cc,
         PoissonPhi_plus_delta.plus(delta, 0, 1, 0); 
 
         // Calculate rho from Phi in SC region
-        ComputeRho(PoissonPhi_plus_delta, rho, e_den, p_den, MaterialMask);
+        ComputeRho(PoissonPhi_plus_delta, rho, e_den, p_den, acceptor_den, donor_den, MaterialMask, geom);
 
         //Compute RHS of Poisson equation
         ComputePoissonRHS(PoissonRHS_phi_plus_delta, P_old, rho, MaterialMask, angle_alpha, angle_beta, angle_theta, geom);
