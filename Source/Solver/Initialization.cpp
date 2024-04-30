@@ -117,6 +117,12 @@ void InitializePandRho(Array<MultiFab, AMREX_SPACEDIM> &P_old,
                  pOld_q(i,j,k) = Remnant_P[1]*exp(-(x*x/(2.0*5.e-9*5.e-9) + y*y/(2.0*5.e-9*5.e-9) + (z-1.5*DE_hi[2])*(z - 1.5*DE_hi[2])/(2.0*2.0e-9*2.0e-9)));
                  pOld_r(i,j,k) = Remnant_P[2]*exp(-(x*x/(2.0*5.e-9*5.e-9) + y*y/(2.0*5.e-9*5.e-9) + (z-1.5*DE_hi[2])*(z - 1.5*DE_hi[2])/(2.0*2.0e-9*2.0e-9)));
 
+               } else if (prob_type == 4) { // uniform P
+
+                 pOld_p(i,j,k) = Remnant_P[0];
+                 pOld_q(i,j,k) = Remnant_P[1];
+                 pOld_r(i,j,k) = Remnant_P[2];
+
                } else {
 
                  Abort("Invalid prob_type");
