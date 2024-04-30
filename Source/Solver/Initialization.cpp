@@ -47,11 +47,18 @@ void InitializePandRho(Array<MultiFab, AMREX_SPACEDIM> &P_old,
                          "P is initialized for convergence test." "\n"
                          "==================================""\n" ;
 
+    } else if (prob_type == 4) {
+
+       amrex::Print() << "==================================""\n"
+                         "Uniform P is initialized." "\n"
+                         "==================================""\n" ;
+
     } else {
       amrex::Print() << "Undefine problem type!! Set prob_type in input script." "\n"
                        "prob_type = 1 for 2D problems" "\n"
                        "prob_type = 2 for 3D problems" "\n"
-                       "prob_type = 3 for convergence tests." "\n";
+                       "prob_type = 3 for convergence tests." "\n"
+                       "prob_type = 4 uniform P." "\n";
       amrex::Abort();
     }
 
