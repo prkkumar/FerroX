@@ -286,7 +286,7 @@ void main_main (c_FerroX& rFerroX)
     InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, acceptor_den, donor_den, MaterialMask, tphaseMask, n_cell, geom, prob_lo, prob_hi);//mask based
    
     Initialize_nucleation_Mask(rFerroX, geom, NucleationMask); 
-    SetNucleation(P_old, NucleationMask);
+    SetNucleation(P_old, NucleationMask, n_cell);
     
     //Obtain self consisten Phi and rho
     Real tol = 1.e-5;
@@ -395,7 +395,7 @@ void main_main (c_FerroX& rFerroX)
             P_new_pre[i].FillBoundary(geom.periodicity()); 
         }  
 
-        SetNucleation(P_new_pre, NucleationMask);
+        SetNucleation(P_new_pre, NucleationMask, n_cell);
 	/**
          * \brief dst = a*x + b*y
          */

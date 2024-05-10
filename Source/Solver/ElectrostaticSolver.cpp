@@ -1,3 +1,4 @@
+#include <AMReX.H>
 #include "ElectrostaticSolver.H"
 #include "DerivativeAlgorithm.H"
 #include "ChargeDensity.H"
@@ -524,8 +525,27 @@ void SetPhiBC_z(MultiFab& PoissonPhi, const amrex::GpuArray<int, AMREX_SPACEDIM>
 }
 
 
-void SetNucleation(Array<MultiFab, AMREX_SPACEDIM> &P_old, MultiFab& NucleationMask)
+void SetNucleation(Array<MultiFab, AMREX_SPACEDIM> &P_old, MultiFab& NucleationMask, const amrex::GpuArray<int, AMREX_SPACEDIM>& n_cell)
 {
+    int seed = random_seed;
+
+    int nprocs = ParallelDescriptor::NProcs();
+
+    if (prob_type == 1) {
+       amrex::InitRandom(seed                             , nprocs, seed                             );  // give all MPI ranks the same seed
+    } else {
+      amrex::InitRandom(seed+ParallelDescriptor::MyProc(), nprocs, seed+ParallelDescriptor::MyProc());  // give all MPI ranks a different seed
+    }
+
+    int nrand = n_cell[0]*n_cell[2];
+    amrex::Gpu::ManagedVector<Real> rngs(nrand, 0.0);
+
+    // generate random numbers on the host
+    for (int i=0; i<nrand; ++i) {
+        //rngs[i] = amrex::RandomNormal(0.,1.); // zero mean, unit variance
+         rngs[i] = amrex::Random(); // uniform [0,1] option
+    }
+
     for (MFIter mfi(P_old[0]); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
@@ -535,14 +555,24 @@ void SetNucleation(Array<MultiFab, AMREX_SPACEDIM> &P_old, MultiFab& NucleationM
         const Array4<Real> &pOld_r = P_old[2].array(mfi);
         const Array4<Real>& mask = NucleationMask.array(mfi);
 
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+	Real* rng = rngs.data();
+
+        amrex::ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, amrex::RandomEngine const& engine) noexcept
         {
 	       if (mask(i,j,k) == 1.) {
-	           pOld_r(i,j,k) = Remnant_P[2];
-	       }
-	       if (mask(i,j,k) == -1.) {
-	           pOld_r(i,j,k) = -Remnant_P[2];
-	       }
+	           if (prob_type == 1) {  //2D
+
+                     pOld_p(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[0]*0.001;
+                     pOld_q(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[1]*0.001;
+                     pOld_r(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[2]*0.001;;
+
+                   } else if (prob_type == 2) { //3D
+
+                     pOld_p(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[0]*0.001;
+                     pOld_q(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[1]*0.001;
+                     pOld_r(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[2]*0.001;
+		   }
+	      }
         });
     }
 
