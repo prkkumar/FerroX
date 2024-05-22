@@ -6,9 +6,9 @@ Our community is here to help. Please report installation problems or general qu
 ## Download AMReX Repository
 ``` git clone git@github.com:AMReX-Codes/amrex.git ```
 ## Download FerroX Repository
-``` git@github.com:AMReX-Microelectronics/FerroX.git ```
+``` git clone git@github.com:AMReX-Microelectronics/FerroX.git ```
 ## Build
-Make sure that the AMReX and FerroX are cloned in the same location in their filesystem. Navogate to the Exec folder of FerroX and execute
+Make sure that the AMReX and FerroX are cloned in the same location in their filesystem. Navigate to the Exec folder of FerroX and execute
 ```make -j 4```
 
 # Running FerroX
