@@ -1,5 +1,5 @@
 namespace FerroX {
-
+    
     extern AMREX_GPU_MANAGED int nsteps;
     extern AMREX_GPU_MANAGED int plot_int;
 

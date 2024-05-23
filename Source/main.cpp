@@ -153,18 +153,15 @@ void main_main (c_FerroX& rFerroX)
        Initialize_Euler_angles(rFerroX, geom, angle_alpha, angle_beta, angle_theta);
     }
 
-    amrex::LPInfo info;
-    std::unique_ptr<amrex::MLMG> pMLMG;
-    int linop_maxorder = 2;
-    std::array<std::array<amrex::LinOpBCType,AMREX_SPACEDIM>,2> LinOpBCType_2d;
-    bool all_homogeneous_boundaries = true;
-    bool some_functionbased_inhomogeneous_boundaries = false;
-    bool some_constant_inhomogeneous_boundaries = false;
-
     bool contains_SC = false;
 
     FerroX_Util::Contains_sc(MaterialMask, contains_SC);
     amrex::Print() << "contains_SC = " << contains_SC << "\n";
+
+    std::array<std::array<amrex::LinOpBCType,AMREX_SPACEDIM>,2> LinOpBCType_2d;
+    bool all_homogeneous_boundaries = true;
+    bool some_functionbased_inhomogeneous_boundaries = false;
+    bool some_constant_inhomogeneous_boundaries = false;
 
     SetPoissonBC(rFerroX, LinOpBCType_2d, all_homogeneous_boundaries, some_functionbased_inhomogeneous_boundaries, some_constant_inhomogeneous_boundaries);
 
@@ -179,148 +176,31 @@ void main_main (c_FerroX& rFerroX)
     // set cell-centered beta coefficient to permittivity based on mask
     InitializePermittivity(LinOpBCType_2d, beta_cc, MaterialMask, tphaseMask, n_cell, geom, prob_lo, prob_hi);
     eXstatic_MFab_Util::AverageCellCenteredMultiFabToCellFaces(beta_cc, beta_face);
-
-    int amrlev = 0; //refers to the setcoarsest level of the solve
+    
     // time = starting time in the simulation
     Real time = 0.0;
 
-#ifdef AMREX_USE_EB
-
-    std::unique_ptr<amrex::MLEBABecLap> p_mlebabec;
-    p_mlebabec = std::make_unique<amrex::MLEBABecLap>();
-    p_mlebabec->define({geom}, {ba}, {dm}, info,{& *rGprop.pEB->p_factory_union});
-
-    // Force singular system to be solvable
-    p_mlebabec->setEnforceSingularSolvable(false);
-
-    // set order of stencil
-    p_mlebabec->setMaxOrder(linop_maxorder);
-
-    // assign domain boundary conditions to the solver
-    p_mlebabec->setDomainBC(LinOpBCType_2d[0], LinOpBCType_2d[1]);
-
-    if(some_constant_inhomogeneous_boundaries)
-    {
-        Fill_Constant_Inhomogeneous_Boundaries(rFerroX, PoissonPhi);
-    }
-    if(some_functionbased_inhomogeneous_boundaries)
-    {
-        Fill_FunctionBased_Inhomogeneous_Boundaries(rFerroX, PoissonPhi, time);
-    }
-    PoissonPhi.FillBoundary(geom.periodicity());
-
-    // Set Dirichlet BC for Phi in z
-    SetPhiBC_z(PoissonPhi, n_cell, geom); 
-    p_mlebabec->setLevelBC(amrlev, &PoissonPhi);
-    
-    // (A*alpha_cc - B * div beta grad) phi = rhs
-    p_mlebabec->setScalars(-1.0, 1.0); // A = -1.0, B = 1.0; solving (-alpha - div beta grad) phi = RHS
-    p_mlebabec->setBCoeffs(amrlev, amrex::GetArrOfConstPtrs(beta_face));
-
-    if(rGprop.pEB->specify_inhomogeneous_dirichlet == 0)
-    {
-        p_mlebabec->setEBHomogDirichlet(amrlev, beta_cc);
-    }
-    else
-    {
-        p_mlebabec->setEBDirichlet(amrlev, *rGprop.pEB->p_surf_soln_union, beta_cc);
-    }
-
-    pMLMG = std::make_unique<MLMG>(*p_mlebabec);
-
-    pMLMG->setVerbose(mlmg_verbosity);
-#else
+    amrex::LPInfo info;
+    std::unique_ptr<amrex::MLMG> pMLMG;
     std::unique_ptr<amrex::MLABecLaplacian> p_mlabec;
-    p_mlabec = std::make_unique<amrex::MLABecLaplacian>();
-    p_mlabec->define({geom}, {ba}, {dm}, info);
+    int linop_maxorder = 2;
+    int amrlev = 0; //refers to the setcoarsest level of the solve
 
-    //Force singular system to be solvable
-    p_mlabec->setEnforceSingularSolvable(false); 
+    SetupMLMG(pMLMG, p_mlabec, LinOpBCType_2d, n_cell, beta_face, rFerroX, PoissonPhi, time, info);
 
-    p_mlabec->setMaxOrder(linop_maxorder);  
-
-    p_mlabec->setDomainBC(LinOpBCType_2d[0], LinOpBCType_2d[1]);
-
-    if(some_constant_inhomogeneous_boundaries)
-    {
-        Fill_Constant_Inhomogeneous_Boundaries(rFerroX, PoissonPhi);
-    }
-    if(some_functionbased_inhomogeneous_boundaries)
-    {
-        Fill_FunctionBased_Inhomogeneous_Boundaries(rFerroX, PoissonPhi, time);
-    }
-    PoissonPhi.FillBoundary(geom.periodicity());
-
-    // set Dirichlet BC by reading in the ghost cell values
-    SetPhiBC_z(PoissonPhi, n_cell, geom); 
-    p_mlabec->setLevelBC(amrlev, &PoissonPhi);
-    
-    // (A*alpha_cc - B * div beta grad) phi = rhs
-    p_mlabec->setScalars(-1.0, 1.0); // A = -1.0, B = 1.0; solving (-alpha - div beta grad) phi = RHS
-    p_mlabec->setBCoeffs(amrlev, amrex::GetArrOfConstPtrs(beta_face));
-
-    //Declare MLMG object
-    pMLMG = std::make_unique<MLMG>(*p_mlabec);
-    pMLMG->setVerbose(mlmg_verbosity);
+#ifdef AMREX_USE_EB
+    std::unique_ptr<amrex::MLEBABecLap> p_mlebabec;
+    SetupMLMG_EB(pMLMG, p_mlebabec, LinOpBCType_2d, n_cell, beta_face, rFerroX, PoissonPhi, time, info);
 #endif
-
-
+    
     // INITIALIZE P in FE and rho in SC regions
 
     //InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, geom, prob_lo, prob_hi);//old
     InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, MaterialMask, tphaseMask, n_cell, geom, prob_lo, prob_hi);//mask based
     
-    //Obtain self consisten Phi and rho
-    Real tol = 1.e-5;
-    Real err = 1.0;
-    int iter = 0;
-    
-    while(err > tol){
-   
-	//Compute RHS of Poisson equation
-	ComputePoissonRHS(PoissonRHS, P_old, charge_den, MaterialMask, angle_alpha, angle_beta, angle_theta, geom);
-
-        dF_dPhi(alpha_cc, PoissonRHS, PoissonPhi, P_old, charge_den, e_den, hole_den, MaterialMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
-
-        ComputePoissonRHS_Newton(PoissonRHS, PoissonPhi, alpha_cc); 
-
-#ifdef AMREX_USE_EB
-        p_mlebabec->setACoeffs(0, alpha_cc);
-#else
-        p_mlabec->setACoeffs(0, alpha_cc);
-#endif
-        //Initial guess for phi
-        PoissonPhi.setVal(0.);
-
-        //Poisson Solve
-        pMLMG->solve({&PoissonPhi}, {&PoissonRHS}, 1.e-10, -1);
-	PoissonPhi.FillBoundary(geom.periodicity());
-	
-        // Calculate rho from Phi in SC region
-        ComputeRho(PoissonPhi, charge_den, e_den, hole_den, MaterialMask);
-        
-	if (contains_SC == 0) {
-            // no semiconductor region; set error to zero so the while loop terminates
-            err = 0.;
-        } else {
-
-            // Calculate Error
-            if (iter > 0){
-                MultiFab::Copy(PhiErr, PoissonPhi, 0, 0, 1, 0);
-                MultiFab::Subtract(PhiErr, PoissonPhi_Prev, 0, 0, 1, 0);
-                err = PhiErr.norm1(0, geom.periodicity())/PoissonPhi.norm1(0, geom.periodicity());
-            }
-
-            //Copy PoissonPhi to PoissonPhi_Prev to calculate error at the next iteration
-            MultiFab::Copy(PoissonPhi_Prev, PoissonPhi, 0, 0, 1, 0);
-
-            iter = iter + 1;
-            amrex::Print() << iter << " iterations :: err = " << err << std::endl;
-            if( iter > 20 ) amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
-        }
-    }
-    
-    amrex::Print() << "\n ========= Self-Consistent Initialization of P and Rho Done! ========== \n"<< iter << " iterations to obtain self consistent Phi with err = " << err << std::endl;
+    ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
+                   P_old, charge_den, e_den, hole_den, MaterialMask, 
+                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 
     // Calculate E from Phi
     ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
@@ -353,71 +233,11 @@ void main_main (c_FerroX& rFerroX)
             MultiFab::LinComb(P_new_pre[i], 1.0, P_old[i], 0, dt, GL_rhs[i], 0, 0, 1, Nghost);
             P_new_pre[i].FillBoundary(geom.periodicity()); 
         }  
-
-	/**
-         * \brief dst = a*x + b*y
-         */
-//    static void LinComb (MultiFab&       dst,
-//                         Real            a,
-//                         const MultiFab& x,
-//                         int             xcomp,
-//                         Real            b,
-//                         const MultiFab& y,
-//                         int             ycomp,
-//                         int             dstcomp,
-//                         int             numcomp,
-//                         int             nghost);
 	
+        ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
+                       P_new_pre, charge_den, e_den, hole_den, MaterialMask, 
+                       angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 
-        err = 1.0;
-        iter = 0;
-
-        // iterate to compute Phi^{n+1,*}
-        while(err > tol){
-   
-            // Compute RHS of Poisson equation
-            ComputePoissonRHS(PoissonRHS, P_new_pre, charge_den, MaterialMask, angle_alpha, angle_beta, angle_theta, geom);
-
-            dF_dPhi(alpha_cc, PoissonRHS, PoissonPhi, P_new_pre, charge_den, e_den, hole_den, MaterialMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
-
-            ComputePoissonRHS_Newton(PoissonRHS, PoissonPhi, alpha_cc); 
-
-#ifdef AMREX_USE_EB
-            p_mlebabec->setACoeffs(0, alpha_cc);
-#else 
-            p_mlabec->setACoeffs(0, alpha_cc);
-#endif
-            //Initial guess for phi
-            PoissonPhi.setVal(0.);
-
-            //Poisson Solve
-            pMLMG->solve({&PoissonPhi}, {&PoissonRHS}, 1.e-10, -1);
-	    
-	    PoissonPhi.FillBoundary(geom.periodicity());
-            
-	    // Calculate rho from Phi in SC region
-            ComputeRho(PoissonPhi, charge_den, e_den, hole_den, MaterialMask);
-
-            if (contains_SC == 0) {
-                // no semiconductor region; set error to zero so the while loop terminates
-                err = 0.;
-            } else {
-                
-                // Calculate Error
-                if (iter > 0){
-                    MultiFab::Copy(PhiErr, PoissonPhi, 0, 0, 1, 0);
-                    MultiFab::Subtract(PhiErr, PoissonPhi_Prev, 0, 0, 1, 0);
-                    err = PhiErr.norm1(0, geom.periodicity())/PoissonPhi.norm1(0, geom.periodicity());
-                }
-
-                //Copy PoissonPhi to PoissonPhi_Prev to calculate error at the next iteration
-                MultiFab::Copy(PoissonPhi_Prev, PoissonPhi, 0, 0, 1, 0);
-
-                iter = iter + 1;
-                amrex::Print() << iter << " iterations :: err = " << err << std::endl;
-                if( iter > 20 ) amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
-            }
-        }
         
         if (TimeIntegratorOrder == 1) {
 
@@ -440,56 +260,10 @@ void main_main (c_FerroX& rFerroX)
                 MultiFab::LinComb(P_new[i], 1.0, P_old[i], 0, dt, GL_rhs_avg[i], 0, 0, 1, Nghost);
             }
         
-            err = 1.0;
-            iter = 0;
+            ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
+                       P_new, charge_den, e_den, hole_den, MaterialMask, 
+                       angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 
-            // iterate to compute Phi^{n+1}
-            while(err > tol){
-   
-                // Compute RHS of Poisson equation
-                ComputePoissonRHS(PoissonRHS, P_new, charge_den, MaterialMask, angle_alpha, angle_beta, angle_theta, geom);
-
-                dF_dPhi(alpha_cc, PoissonRHS, PoissonPhi, P_new, charge_den, e_den, hole_den, MaterialMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
-
-                ComputePoissonRHS_Newton(PoissonRHS, PoissonPhi, alpha_cc); 
-
-#ifdef AMREX_USE_EB
-                p_mlebabec->setACoeffs(0, alpha_cc);
-#else 
-                p_mlabec->setACoeffs(0, alpha_cc);
-#endif
- 
-                //Initial guess for phi
-                PoissonPhi.setVal(0.);
-
-                //Poisson Solve
-                pMLMG->solve({&PoissonPhi}, {&PoissonRHS}, 1.e-10, -1);
-	        PoissonPhi.FillBoundary(geom.periodicity());
-	
-                // Calculate rho from Phi in SC region
-                ComputeRho(PoissonPhi, charge_den, e_den, hole_den, MaterialMask);
-
-                if (contains_SC == 0) {
-                    // no semiconductor region; set error to zero so the while loop terminates
-                    err = 0.;
-                } else {
-                    
-                    // Calculate Error
-                    if (iter > 0){
-                        MultiFab::Copy(PhiErr, PoissonPhi, 0, 0, 1, 0);
-                        MultiFab::Subtract(PhiErr, PoissonPhi_Prev, 0, 0, 1, 0);
-                        err = PhiErr.norm1(0, geom.periodicity())/PoissonPhi.norm1(0, geom.periodicity());
-                    }
-
-                    //Copy PoissonPhi to PoissonPhi_Prev to calculate error at the next iteration
-                    MultiFab::Copy(PoissonPhi_Prev, PoissonPhi, 0, 0, 1, 0);
-
-                    iter = iter + 1;
-                    amrex::Print() << iter << " iterations :: err = " << err << std::endl;
-                    if( iter > 20 ) amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
-                }
-            }
-            
             // copy new solution into old solution
             for (int i = 0; i < 3; i++){
                 MultiFab::Copy(P_old[i], P_new[i], 0, 0, 1, 0);
@@ -498,14 +272,14 @@ void main_main (c_FerroX& rFerroX)
             }
     	}
 
-    // Check if steady state has reached 
-    CheckSteadyState(PoissonPhi, PoissonPhi_Old, Phidiff, phi_tolerance, step, steady_state_step, inc_step);
+        // Check if steady state has reached 
+        CheckSteadyState(PoissonPhi, PoissonPhi_Old, Phidiff, phi_tolerance, step, steady_state_step, inc_step);
 
-	// Calculate E from Phi
-	ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+	    // Calculate E from Phi
+	    ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 
 
-	Real step_stop_time = ParallelDescriptor::second() - step_strt_time;
+	    Real step_stop_time = ParallelDescriptor::second() - step_strt_time;
         ParallelDescriptor::ReduceRealMax(step_stop_time);
 
         amrex::Print() << "Advanced step " << step << " in " << step_stop_time << " seconds\n";
@@ -546,56 +320,10 @@ void main_main (c_FerroX& rFerroX)
            p_mlabec->setLevelBC(amrlev, &PoissonPhi);
 #endif
 
-           err = 1.0;
-           iter = 0;
-
-           // iterate to compute Phi^{n+1} with new Dirichlet value
-           while(err > tol){
-   
-               // Compute RHS of Poisson equation
-               ComputePoissonRHS(PoissonRHS, P_old, charge_den, MaterialMask, angle_alpha, angle_beta, angle_theta, geom);
-
-               dF_dPhi(alpha_cc, PoissonRHS, PoissonPhi, P_old, charge_den, e_den, hole_den, MaterialMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
-
-               ComputePoissonRHS_Newton(PoissonRHS, PoissonPhi, alpha_cc); 
-
-#ifdef AMREX_USE_EB
-               p_mlebabec->setACoeffs(0, alpha_cc);
-#else 
-               p_mlabec->setACoeffs(0, alpha_cc);
-#endif
- 
-               //Initial guess for phi
-               PoissonPhi.setVal(0.);
-
-               //Poisson Solve
-               pMLMG->solve({&PoissonPhi}, {&PoissonRHS}, 1.e-10, -1);
-	           PoissonPhi.FillBoundary(geom.periodicity());
-	
-               // Calculate rho from Phi in SC region
-               ComputeRho(PoissonPhi, charge_den, e_den, hole_den, MaterialMask);
-
-               if (contains_SC == 0) {
-                   // no semiconductor region; set error to zero so the while loop terminates
-                   err = 0.;
-               } else {
-               
-                   // Calculate Error
-                   if (iter > 0){
-                       MultiFab::Copy(PhiErr, PoissonPhi, 0, 0, 1, 0);
-                       MultiFab::Subtract(PhiErr, PoissonPhi_Prev, 0, 0, 1, 0);
-                       err = PhiErr.norm1(0, geom.periodicity())/PoissonPhi.norm1(0, geom.periodicity());
-                   }
-
-                   //Copy PoissonPhi to PoissonPhi_Prev to calculate error at the next iteration
-                   MultiFab::Copy(PoissonPhi_Prev, PoissonPhi, 0, 0, 1, 0);
-
-                   iter = iter + 1;
-                   amrex::Print() << iter << " iterations :: err = " << err << std::endl;
-                   if( iter > 20 ) amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
-               }
-           }
-       
+           ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
+                       P_old, charge_den, e_den, hole_den, MaterialMask, 
+                       angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+           
         }//end inc_step	
    
         if (voltage_sweep == 0 && step == steady_state_step) {

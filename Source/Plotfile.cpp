@@ -108,7 +108,7 @@ void WritePlotfile(c_FerroX& rFerroX,
 
     auto& rGprop = rFerroX.get_GeometryProperties();
 #ifdef AMREX_USE_EB
-    MultiFab Plt(ba, dm, nvar, 0,  MFInfo(), rGprop.pEB.p_factory_union);
+    MultiFab Plt(ba, dm, nvar, 0,  MFInfo(), rGprop->pEB->p_factory_union);
 #else    
     MultiFab Plt(ba, dm, nvar, 0);
 #endif

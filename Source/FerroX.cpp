@@ -13,7 +13,6 @@
 #include "Input/BoundaryConditions/BoundaryConditions.H"
 #include <AMReX_ParmParse.H>
 
-
 c_FerroX* c_FerroX::m_instance = nullptr;
 #ifdef AMREX_USE_GPU
 bool c_FerroX::do_device_synchronize = true;

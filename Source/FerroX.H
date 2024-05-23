@@ -17,7 +17,6 @@
 #include "FerroX_namespace.H"
 
 
-
 using namespace FerroX;
 using namespace amrex;
 
