@@ -153,26 +153,18 @@ void main_main (c_FerroX& rFerroX)
        Initialize_Euler_angles(rFerroX, geom, angle_alpha, angle_beta, angle_theta);
     }
 
-    //Solver for Poisson equation
-    LPInfo info;
+    amrex::LPInfo info;
     std::unique_ptr<amrex::MLMG> pMLMG;
-    // order of stencil
     int linop_maxorder = 2;
     std::array<std::array<amrex::LinOpBCType,AMREX_SPACEDIM>,2> LinOpBCType_2d;
     bool all_homogeneous_boundaries = true;
     bool some_functionbased_inhomogeneous_boundaries = false;
     bool some_constant_inhomogeneous_boundaries = false;
- 
+
     bool contains_SC = false;
 
     FerroX_Util::Contains_sc(MaterialMask, contains_SC);
     amrex::Print() << "contains_SC = " << contains_SC << "\n";
-
-#ifdef AMREX_USE_EB
-    MultiFab Plt(ba, dm, 18, 0,  MFInfo(), *rGprop.pEB->p_factory_union);
-#else    
-    MultiFab Plt(ba, dm, 18, 0);
-#endif
 
     SetPoissonBC(rFerroX, LinOpBCType_2d, all_homogeneous_boundaries, some_functionbased_inhomogeneous_boundaries, some_constant_inhomogeneous_boundaries);
 
@@ -336,32 +328,9 @@ void main_main (c_FerroX& rFerroX)
     // Write a plotfile of the initial data if plot_int > 0
     if (plot_int > 0)
     {
-        int step = 0;
-        const std::string& pltfile = amrex::Concatenate("plt",step,8);
-        MultiFab::Copy(Plt, P_old[0], 0, 0, 1, 0);
-        MultiFab::Copy(Plt, P_old[1], 0, 1, 1, 0);
-        MultiFab::Copy(Plt, P_old[2], 0, 2, 1, 0);  
-        MultiFab::Copy(Plt, PoissonPhi, 0, 3, 1, 0);
-        MultiFab::Copy(Plt, PoissonRHS, 0, 4, 1, 0);
-        MultiFab::Copy(Plt, E[0], 0, 5, 1, 0);
-        MultiFab::Copy(Plt, E[1], 0, 6, 1, 0);
-        MultiFab::Copy(Plt, E[2], 0, 7, 1, 0);
-        MultiFab::Copy(Plt, hole_den, 0, 8, 1, 0);
-        MultiFab::Copy(Plt, e_den, 0, 9, 1, 0);
-        MultiFab::Copy(Plt, charge_den, 0, 10, 1, 0);
-
-        MultiFab::Copy(Plt, beta_cc, 0, 11, 1, 0);
-        MultiFab::Copy(Plt, MaterialMask, 0, 12, 1, 0);
-        MultiFab::Copy(Plt, tphaseMask, 0, 13, 1, 0);
-        MultiFab::Copy(Plt, angle_alpha, 0, 14, 1, 0);
-        MultiFab::Copy(Plt, angle_beta, 0, 15, 1, 0);
-        MultiFab::Copy(Plt, angle_theta, 0, 16, 1, 0);
-        MultiFab::Copy(Plt, Phidiff, 0, 17, 1, 0);
-#ifdef AMREX_USE_EB
-	amrex::EB_WriteSingleLevelPlotfile(pltfile, Plt, {"Px","Py","Pz","Phi","PoissonRHS","Ex","Ey","Ez","holes","electrons","charge","epsilon", "mask", "tphase","alpha", "beta", "theta", "PhiDiff"}, geom, time, step);
-#else
-	amrex::WriteSingleLevelPlotfile(pltfile, Plt, {"Px","Py","Pz","Phi","PoissonRHS","Ex","Ey","Ez","holes","electrons","charge","epsilon", "mask", "tphase","alpha", "beta", "theta", "PhiDiff"}, geom, time, step);
-#endif
+        int plt_step = 0;
+        WritePlotfile(rFerroX, PoissonPhi, PoissonRHS, P_old, E, hole_den, e_den, charge_den, beta_cc, 
+                      MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, Phidiff, geom, time, plt_step);
     }
 
     amrex::Print() << "\n ========= Advance Steps  ========== \n"<< std::endl;
@@ -529,41 +498,8 @@ void main_main (c_FerroX& rFerroX)
             }
     	}
 
-        // Check if steady state has reached 
-        //MultiFab::Copy(Phidiff, PoissonPhi, 0, 0, 1, 0);
-        //MultiFab::Subtract(Phidiff, PoissonPhi_Old, 0, 0, 1, 0);
-
-        Real phi_max = PoissonPhi_Old.norm0();
-
-        for (MFIter mfi(PoissonPhi); mfi.isValid(); ++mfi)
-        {   
-            const Box& bx = mfi.growntilebox(1);
-
-            const Array4<Real>& Phi = PoissonPhi.array(mfi);
-            const Array4<Real>& PhiOld = PoissonPhi_Old.array(mfi);
-            const Array4<Real>& Phi_err = Phidiff.array(mfi);
-
-
-            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
-            {   
-                Phi_err(i,j,k) = amrex::Math::abs(Phi(i,j,k) - PhiOld(i,j,k)) / phi_max;
-            }); 
-        }   
- 
-        Real max_phi_err = Phidiff.norm0();
-
-        if(step > 1){
-          if (max_phi_err < phi_tolerance) {
-                  steady_state_step = step;
-                  inc_step = step;
-          }
-        }
-
-        //Copy PoissonPhi to PoissonPhi_Old to calculate difference at the next iteration
-        MultiFab::Copy(PoissonPhi_Old, PoissonPhi, 0, 0, 1, 0);
-
-        amrex::Print() << "Steady state check : (phi(t) - phi(t-1)).norm0() = " << max_phi_err << std::endl;
-
+    // Check if steady state has reached 
+    CheckSteadyState(PoissonPhi, PoissonPhi_Old, Phidiff, phi_tolerance, step, steady_state_step, inc_step);
 
 	// Calculate E from Phi
 	ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
@@ -582,31 +518,10 @@ void main_main (c_FerroX& rFerroX)
         // Write a plotfile of the current data (plot_int was defined in the inputs file)
         if (plot_int > 0 && (step%plot_int == 0 || step == steady_state_step))
         {
-            const std::string& pltfile = amrex::Concatenate("plt",step,8);
-            MultiFab::Copy(Plt, P_old[0], 0, 0, 1, 0);
-            MultiFab::Copy(Plt, P_old[1], 0, 1, 1, 0);
-            MultiFab::Copy(Plt, P_old[2], 0, 2, 1, 0);  
-            MultiFab::Copy(Plt, PoissonPhi, 0, 3, 1, 0);
-            MultiFab::Copy(Plt, PoissonRHS, 0, 4, 1, 0);
-            MultiFab::Copy(Plt, E[0], 0, 5, 1, 0);
-            MultiFab::Copy(Plt, E[1], 0, 6, 1, 0);
-            MultiFab::Copy(Plt, E[2], 0, 7, 1, 0);
-            MultiFab::Copy(Plt, hole_den, 0,8, 1, 0);
-            MultiFab::Copy(Plt, e_den, 0, 9, 1, 0);
-            MultiFab::Copy(Plt, charge_den, 0, 10, 1, 0);
-
-            MultiFab::Copy(Plt, beta_cc, 0, 11, 1, 0);
-            MultiFab::Copy(Plt, MaterialMask, 0, 12, 1, 0);
-            MultiFab::Copy(Plt, tphaseMask, 0, 13, 1, 0);
-            MultiFab::Copy(Plt, angle_alpha, 0, 14, 1, 0);
-            MultiFab::Copy(Plt, angle_beta, 0, 15, 1, 0);
-            MultiFab::Copy(Plt, angle_theta, 0, 16, 1, 0);
-            MultiFab::Copy(Plt, Phidiff, 0, 17, 1, 0);
-#ifdef AMREX_USE_EB
-	    amrex::EB_WriteSingleLevelPlotfile(pltfile, Plt, {"Px","Py","Pz","Phi","PoissonRHS","Ex","Ey","Ez","holes","electrons","charge","epsilon", "mask", "tphase","alpha", "beta", "theta", "PhiDiff"}, geom, time, step);
-#else
-	    amrex::WriteSingleLevelPlotfile(pltfile, Plt, {"Px","Py","Pz","Phi","PoissonRHS","Ex","Ey","Ez","holes","electrons","charge","epsilon", "mask", "tphase","alpha", "beta", "theta", "PhiDiff"}, geom, time, step);
-#endif
+            int plt_step = step;
+            WritePlotfile(rFerroX, PoissonPhi, PoissonRHS, P_old, E, hole_den, e_den, charge_den, beta_cc, 
+                      MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, Phidiff, geom, time, plt_step);
+            
         }
 
         if(voltage_sweep == 1 && inc_step > 0 && step == inc_step)
@@ -655,7 +570,7 @@ void main_main (c_FerroX& rFerroX)
 
                //Poisson Solve
                pMLMG->solve({&PoissonPhi}, {&PoissonRHS}, 1.e-10, -1);
-	       PoissonPhi.FillBoundary(geom.periodicity());
+	           PoissonPhi.FillBoundary(geom.periodicity());
 	
                // Calculate rho from Phi in SC region
                ComputeRho(PoissonPhi, charge_den, e_den, hole_den, MaterialMask);

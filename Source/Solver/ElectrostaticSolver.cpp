@@ -521,3 +521,38 @@ void SetPhiBC_z(MultiFab& PoissonPhi, const amrex::GpuArray<int, AMREX_SPACEDIM>
     PoissonPhi.FillBoundary(geom.periodicity());
 }
 
+void CheckSteadyState(MultiFab& PoissonPhi, MultiFab& PoissonPhi_Old, MultiFab& Phidiff, Real phi_tolerance, int step, int steady_state_step, int inc_step)
+{
+
+        Real phi_max = PoissonPhi_Old.norm0();
+
+        for (MFIter mfi(PoissonPhi); mfi.isValid(); ++mfi)
+        {   
+            const Box& bx = mfi.growntilebox(1);
+
+            const Array4<Real>& Phi = PoissonPhi.array(mfi);
+            const Array4<Real>& PhiOld = PoissonPhi_Old.array(mfi);
+            const Array4<Real>& Phi_err = Phidiff.array(mfi);
+
+
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+            {   
+                Phi_err(i,j,k) = amrex::Math::abs(Phi(i,j,k) - PhiOld(i,j,k)) / phi_max;
+            }); 
+        }   
+ 
+        Real max_phi_err = Phidiff.norm0();
+
+        if(step > 1){
+          if (max_phi_err < phi_tolerance) {
+                  steady_state_step = step;
+                  inc_step = step;
+          }
+        }
+
+        //Copy PoissonPhi to PoissonPhi_Old to calculate difference at the next iteration
+        MultiFab::Copy(PoissonPhi_Old, PoissonPhi, 0, 0, 1, 0);
+
+        amrex::Print() << "Steady state check : (phi(t) - phi(t-1)).norm0() = " << max_phi_err << std::endl;
+
+}

@@ -62,3 +62,4 @@ void SetPoissonBC(c_FerroX& rFerroX, std::array<std::array<amrex::LinOpBCType,AM
 void Fill_Constant_Inhomogeneous_Boundaries(c_FerroX& rFerroX, MultiFab& PoissonPhi);
 void Fill_FunctionBased_Inhomogeneous_Boundaries(c_FerroX& rFerroX, MultiFab& PoissonPhi, amrex::Real& time);
 
+void CheckSteadyState(MultiFab& PoissonPhi, MultiFab& PoissonPhi_Old, MultiFab& Phidiff, Real phi_tolerance, int step, int steady_state_step, int inc_step);
