@@ -612,10 +612,11 @@ void SetupMLMG(std::unique_ptr<amrex::MLMG>& pMLMG,
 
 #ifdef AMREX_USE_EB
  void SetupMLMG_EB(std::unique_ptr<amrex::MLMG>& pMLMG, 
-        std::unique_ptr<amrex::MLABecLaplacian>& p_mlebabec,
+        std::unique_ptr<amrex::MLEBABecLap>& p_mlebabec,
         std::array<std::array<amrex::LinOpBCType,AMREX_SPACEDIM>,2>& LinOpBCType_2d,
         const amrex::GpuArray<int, AMREX_SPACEDIM>& n_cell,
         std::array< MultiFab, AMREX_SPACEDIM >& beta_face,
+        MultiFab& beta_cc,
         c_FerroX& rFerroX, MultiFab& PoissonPhi, amrex::Real& time, amrex::LPInfo& info)
  {
     auto& rGprop = rFerroX.get_GeometryProperties();
@@ -628,7 +629,7 @@ void SetupMLMG(std::unique_ptr<amrex::MLMG>& pMLMG,
     bool some_constant_inhomogeneous_boundaries = false;
     int amrlev = 0; //refers to the setcoarsest level of the solve
 
-    p_mlebabec = std::make_unique<amrex::MLEBABecLaplacian>();
+    p_mlebabec = std::make_unique<amrex::MLEBABecLap>();
     p_mlebabec->define({geom}, {ba}, {dm}, info,{& *rGprop.pEB->p_factory_union});
 
     // Force singular system to be solvable
@@ -744,3 +745,76 @@ void ComputePhi_Rho(std::unique_ptr<amrex::MLMG>& pMLMG,
     
     // amrex::Print() << "\n ========= Self-Consistent Initialization of Phi and Rho Done! ========== \n"<< iter << " iterations to obtain self consistent Phi with err = " << err << std::endl;
 }
+
+#ifdef AMREX_USE_EB
+void ComputePhi_Rho_EB(std::unique_ptr<amrex::MLMG>& pMLMG, 
+             std::unique_ptr<amrex::MLEBABecLap>& p_mlebabec,
+             MultiFab&            alpha_cc,
+             MultiFab&            PoissonRHS, 
+             MultiFab&            PoissonPhi, 
+             MultiFab&            PoissonPhi_Prev,
+             MultiFab&            PhiErr,  
+	         Array<MultiFab, AMREX_SPACEDIM>& P_old,
+             MultiFab&            rho,
+             MultiFab&            e_den,
+             MultiFab&            p_den,
+	         MultiFab&            MaterialMask,
+             MultiFab& angle_alpha, MultiFab& angle_beta, MultiFab& angle_theta,
+             const          Geometry& geom,
+	         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_lo,
+             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_hi)
+
+{
+//Obtain self consisten Phi and rho
+    Real tol = 1.e-5;
+    Real err = 1.0;
+    int iter = 0;
+    bool contains_SC = false;
+    FerroX_Util::Contains_sc(MaterialMask, contains_SC);
+    
+    while(err > tol){
+   
+	//Compute RHS of Poisson equation
+	ComputePoissonRHS(PoissonRHS, P_old, rho, MaterialMask, angle_alpha, angle_beta, angle_theta, geom);
+
+        dF_dPhi(alpha_cc, PoissonRHS, PoissonPhi, P_old, rho, e_den, p_den, MaterialMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+
+        ComputePoissonRHS_Newton(PoissonRHS, PoissonPhi, alpha_cc); 
+
+
+        p_mlebabec->setACoeffs(0, alpha_cc);
+
+        //Initial guess for phi
+        PoissonPhi.setVal(0.);
+
+        //Poisson Solve
+        pMLMG->solve({&PoissonPhi}, {&PoissonRHS}, 1.e-10, -1);
+	    PoissonPhi.FillBoundary(geom.periodicity());
+	
+        // Calculate rho from Phi in SC region
+        ComputeRho(PoissonPhi, rho, e_den, p_den, MaterialMask);
+        
+	if (contains_SC == 0) {
+            // no semiconductor region; set error to zero so the while loop terminates
+            err = 0.;
+        } else {
+
+            // Calculate Error
+            if (iter > 0){
+                MultiFab::Copy(PhiErr, PoissonPhi, 0, 0, 1, 0);
+                MultiFab::Subtract(PhiErr, PoissonPhi_Prev, 0, 0, 1, 0);
+                err = PhiErr.norm1(0, geom.periodicity())/PoissonPhi.norm1(0, geom.periodicity());
+            }
+
+            //Copy PoissonPhi to PoissonPhi_Prev to calculate error at the next iteration
+            MultiFab::Copy(PoissonPhi_Prev, PoissonPhi, 0, 0, 1, 0);
+
+            iter = iter + 1;
+            amrex::Print() << iter << " iterations :: err = " << err << std::endl;
+            if( iter > 20 ) amrex::Print() <<  "Failed to reach self consistency between Phi and Rho in 20 iterations!! " << std::endl;
+        }
+    }
+    
+    // amrex::Print() << "\n ========= Self-Consistent Initialization of Phi and Rho Done! ========== \n"<< iter << " iterations to obtain self consistent Phi with err = " << err << std::endl;
+}
+#endif
