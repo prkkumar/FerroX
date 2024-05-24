@@ -9,6 +9,7 @@ USE_CUDA     = TRUE
 COMP         = gnu
 DIM          = 3
 CXXSTD       = c++17
+TINY_PROFILE = TRUE
 
 USE_EB = FALSE
 

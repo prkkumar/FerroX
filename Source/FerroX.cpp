@@ -167,6 +167,21 @@ AMREX_GPU_MANAGED int FerroX::plot_int;
 // time step
 AMREX_GPU_MANAGED amrex::Real FerroX::dt;
 
+int FerroX::plot_Phi;
+int FerroX::plot_PoissonRHS;
+int FerroX::plot_E;
+int FerroX::plot_holes;
+int FerroX::plot_electrons;
+int FerroX::plot_charge;
+int FerroX::plot_epsilon;
+int FerroX::plot_mask;
+int FerroX::plot_tphase;
+int FerroX::plot_alpha;
+int FerroX::plot_beta;
+int FerroX::plot_theta;
+int FerroX::plot_PhiDiff;
+
+
 // multimaterial stack geometry
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::DE_lo;
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::FE_lo;
@@ -271,6 +286,33 @@ void InitializeFerroXNamespace(const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM
      if(P_BC_flag_lo[2] == 3 || P_BC_flag_hi[2] == 3){
        amrex::Warning("This boundary condition does not represent the accurate physical picture!!");
      }
+     
+     plot_Phi = 1;
+     pp.query("plot_Phi",plot_Phi);
+     plot_PoissonRHS = 1;
+     pp.query("plot_PoissonRHS",plot_PoissonRHS);
+     plot_E = 1;    
+     pp.query("plot_E",plot_E);    
+     plot_holes = 1;
+     pp.query("plot_holes",plot_holes); 
+     plot_electrons = 1;
+     pp.query("plot_electrons",plot_electrons); 
+     plot_charge = 1;
+     pp.query("plot_charge",plot_charge); 
+     plot_epsilon = 1;
+     pp.query("plot_epsilon",plot_epsilon); 
+     plot_mask = 1;
+     pp.query("plot_mask",plot_mask); 
+     plot_tphase = 1;
+     pp.query("plot_tphase",plot_tphase); 
+     plot_alpha = 1 ;
+     pp.query("plot_alpha",plot_alpha); 
+     plot_beta = 1;
+     pp.query("plot_beta",plot_beta); 
+     plot_theta = 1;
+     pp.query("plot_theta",plot_theta); 
+     plot_PhiDiff = 1;
+     pp.query("plot_PhiDiff",plot_PhiDiff); 
 
      pp.get("TimeIntegratorOrder",TimeIntegratorOrder);
 
