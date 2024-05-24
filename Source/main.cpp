@@ -42,6 +42,8 @@ int main (int argc, char* argv[])
 void main_main (c_FerroX& rFerroX)
 {
 
+    BL_PROFILE("main()");
+    
     Real total_step_strt_time = ParallelDescriptor::second();
 
     auto& rGprop = rFerroX.get_GeometryProperties();
