@@ -9,7 +9,7 @@ Our community is here to help. Please report installation problems or general qu
 ``` git clone git@github.com:AMReX-Microelectronics/FerroX.git ```
 ## Build
 Make sure that the AMReX and FerroX are cloned in the same location in their filesystem. Navigate to the Exec folder of FerroX and execute
-```make -j 4```
+```make -j 4``` for a GPU build and ```make -j 4 USE_CUDA=FALSE``` for a CPU build.
 
 # Running FerroX
 Example input scripts are located in `Examples` directory. 
