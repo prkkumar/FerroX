@@ -16,9 +16,9 @@ Example input scripts are located in `Examples` directory.
 ## Simple Testcase
 You can run the following to simulate a MFIM heterostructure with a 5 nm HZO as the ferroelectric layer and 4 nm alumina as the dielectric layer under zero applied voltage:
 ## For MPI+OMP build
-```mpirun -n 4 ./main3d.gnu.MPI.OMP.ex Examples/inputs_mfim_Noeb```
+```mpirun -n 4 ./main3d.gnu.TPROF.MPI.OMP.ex Examples/inputs_mfim_Noeb```
 ## For MPI+CUDA build
-```mpirun -n 4 ./main3d.gnu.MPI.CUDA.ex Examples/inputs_mfim_Noeb```
+```mpirun -n 4 ./main3d.gnu.TPROF.MPI.CUDA.ex Examples/inputs_mfim_Noeb```
 # Visualization and Data Analysis
 Refer to the following link for several visualization tools that can be used for AMReX plotfiles. 
 
