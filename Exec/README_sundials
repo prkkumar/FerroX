@@ -51,7 +51,7 @@ NVIDIA/CUDA BUILD
 
 >> export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/pathto/sundials/instdir_cuda/lib/
 
-# now you are ready to compile MagneX with:
+# now you are ready to compile FerroX with:
 
 >> make -j4 USE_SUNDIALS=TRUE # optional to have 'USE_CUDA=TRUE' as well
 
