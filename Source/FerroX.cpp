@@ -241,6 +241,7 @@ AMREX_GPU_MANAGED int FerroX::is_polarization_scalar;
 AMREX_GPU_MANAGED int FerroX::mlmg_verbosity;
 
 AMREX_GPU_MANAGED int FerroX::TimeIntegratorOrder;
+AMREX_GPU_MANAGED int FerroX::use_sundials;
 
 AMREX_GPU_MANAGED amrex::Real FerroX::delta;
 
@@ -315,6 +316,8 @@ void InitializeFerroXNamespace(const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM
      pp.query("plot_PhiDiff",plot_PhiDiff); 
 
      pp.get("TimeIntegratorOrder",TimeIntegratorOrder);
+     use_sundials = 0;
+     pp.query("use_sundials", use_sundials);
 
      pp.get("prob_type", prob_type);
 
