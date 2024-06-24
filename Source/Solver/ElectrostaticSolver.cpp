@@ -523,7 +523,7 @@ void SetPhiBC_z(MultiFab& PoissonPhi, const amrex::GpuArray<int, AMREX_SPACEDIM>
     PoissonPhi.FillBoundary(geom.periodicity());
 }
 
-void CheckSteadyState(MultiFab& PoissonPhi, MultiFab& PoissonPhi_Old, MultiFab& Phidiff, Real phi_tolerance, int step, int steady_state_step, int& inc_step)
+void CheckSteadyState(MultiFab& PoissonPhi, MultiFab& PoissonPhi_Old, MultiFab& Phidiff, Real phi_tolerance, int step, int& steady_state_step, int& inc_step)
 {
 
         Real phi_max = PoissonPhi_Old.norm0();
