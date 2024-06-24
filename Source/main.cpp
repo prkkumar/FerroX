@@ -236,11 +236,11 @@ void main_main (c_FerroX& rFerroX)
     Real tiny = 1.e-6;    
  
 #ifdef AMREX_USE_SUNDIALS
-
-    std::string theStrategy;
-    amrex::ParmParse pp("integration.sundials");
-    pp.get("strategy", theStrategy);
-
+//
+//    std::string theStrategy;
+//    amrex::ParmParse pp("integration.sundials");
+//    pp.get("strategy", theStrategy);
+//
     amrex::Vector<MultiFab> vP_old(AMREX_SPACEDIM);
     amrex::Vector<MultiFab> vP_new(AMREX_SPACEDIM);
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -360,8 +360,9 @@ void main_main (c_FerroX& rFerroX)
 	    // Attach the right hand side and post-update functions
             // to the integrator
             integrator.set_rhs(rhs_fun);
-            integrator.set_post_update(post_update_fun);
+            integrator.set_post_step_action(post_update_fun);
 
+            integrator.set_time_step(dt);
             // integrate forward one step from `time` by `dt` to fill S_new
             integrator.advance(vP_old, vP_new, time, dt);
 
@@ -379,7 +380,7 @@ void main_main (c_FerroX& rFerroX)
 #endif
             // copy new solution into old solution
             for (int i = 0; i < 3; i++) {
-        	MultiFab::Copy(P_old[i], P_new[i], 0, 0, 1, 0);
+        	MultiFab::Copy(P_old[i], P_new[i], 0, 0, 1, 1);
             }
 	}
 
