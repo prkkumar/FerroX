@@ -288,6 +288,8 @@ void main_main (c_FerroX& rFerroX)
         	    }
         	    
         	} else {
+        
+                    ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
         	
         	    // compute f^{n+1,*} = f(P^{n+1,*},Phi^{n+1,*})
         	    CalculateTDGL_RHS(GL_rhs_pre, P_new_pre, E, Gamma, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
