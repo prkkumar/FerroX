@@ -288,7 +288,8 @@ void main_main (c_FerroX& rFerroX)
         	    }
         	    
         	} else {
-        
+
+	            //update E using PoissonPhi computed with P_new_pre 
                     ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
         	
         	    // compute f^{n+1,*} = f(P^{n+1,*},Phi^{n+1,*})
@@ -341,6 +342,17 @@ void main_main (c_FerroX& rFerroX)
                 Array<MultiFab, AMREX_SPACEDIM> ar_state{AMREX_D_DECL(MultiFab(state[0],amrex::make_alias,0,state[0].nComp()),
                                                                       MultiFab(state[1],amrex::make_alias,0,state[1].nComp()),
                                                                       MultiFab(state[2],amrex::make_alias,0,state[2].nComp()))};
+#ifdef AMREX_USE_EB
+        	ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
+        	       ar_state, charge_den, e_den, hole_den, MaterialMask, 
+        	       angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+#else
+        	ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
+        	       ar_state, charge_den, e_den, hole_den, MaterialMask, 
+        	       angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+#endif
+
+                ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 
                 // Compute f^n = f(P^n, E^n) 
         	CalculateTDGL_RHS(ar_rhs, ar_state, E, Gamma, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
