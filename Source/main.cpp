@@ -398,12 +398,13 @@ void main_main (c_FerroX& rFerroX)
             // copy new solution into old solution
             for (int i = 0; i < 3; i++) {
         	MultiFab::Copy(P_old[i], P_new[i], 0, 0, 1, 1);
+        	P_old[i].FillBoundary(geom.periodicity());
             }
 	}
 
         // Check if steady state has reached 
         CheckSteadyState(PoissonPhi, PoissonPhi_Old, Phidiff, phi_tolerance, step, steady_state_step, inc_step); // Calculate E from Phi
-//        ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+        ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 
 
         Real step_stop_time = ParallelDescriptor::second() - step_strt_time;
