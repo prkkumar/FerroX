@@ -562,15 +562,15 @@ void SetNucleation(Array<MultiFab, AMREX_SPACEDIM> &P_old, MultiFab& NucleationM
 	       if (mask(i,j,k) == 1.) {
 	           if (prob_type == 1) {  //2D
 
-                     pOld_p(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[0]*0.001;
-                     pOld_q(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[1]*0.001;
-                     pOld_r(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[2]*0.001;;
+                     pOld_p(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[0]*noise_amplitude;
+                     pOld_q(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[1]*noise_amplitude;
+                     pOld_r(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[2]*noise_amplitude;
 
                    } else if (prob_type == 2) { //3D
 
-                     pOld_p(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[0]*0.001;
-                     pOld_q(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[1]*0.001;
-                     pOld_r(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[2]*0.001;
+                     pOld_p(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[0]*noise_amplitude;
+                     pOld_q(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[1]*noise_amplitude;
+                     pOld_r(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[2]*noise_amplitude;
 		   }
 	      }
         });

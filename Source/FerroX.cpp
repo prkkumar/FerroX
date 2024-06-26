@@ -220,6 +220,7 @@ AMREX_GPU_MANAGED amrex::Real FerroX::lambda;
 AMREX_GPU_MANAGED amrex::GpuArray<int, AMREX_SPACEDIM> FerroX::P_BC_flag_lo;
 AMREX_GPU_MANAGED amrex::GpuArray<int, AMREX_SPACEDIM> FerroX::P_BC_flag_hi;
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::Remnant_P;
+AMREX_GPU_MANAGED amrex::Real FerroX::noise_amplitude;
 
 //problem type : initialization of P for 2D/3D/convergence problems
 AMREX_GPU_MANAGED int FerroX::prob_type;
@@ -359,6 +360,9 @@ void InitializeFerroXNamespace(const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM
 
      num_Vapp_max = 1;
      pp.query("num_Vapp_max",num_Vapp_max);
+
+     noise_amplitude = 0.0;
+     pp.query("noise_amplitude",noise_amplitude);
 
      //stack dimensions in 3D. This is an alternate way of initializing the device geometry, which works in simpler scenarios.
      //A more general way of initializing device geometry is accomplished through masks which use function parsers

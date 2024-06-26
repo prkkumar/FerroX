@@ -61,6 +61,7 @@ namespace FerroX {
     extern AMREX_GPU_MANAGED amrex::GpuArray<int, AMREX_SPACEDIM> P_BC_flag_lo;
     extern AMREX_GPU_MANAGED amrex::GpuArray<int, AMREX_SPACEDIM> P_BC_flag_hi;
     extern AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> Remnant_P;
+    extern AMREX_GPU_MANAGED amrex::Real noise_amplitude;
 
 
     //problem type : initialization of P for 2D/3D/convergence problems
