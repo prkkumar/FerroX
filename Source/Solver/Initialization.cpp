@@ -192,6 +192,8 @@ void InitializeMaterialMask(MultiFab& MaterialMask,
                  mask(i,j,k) = 0.;
              } else if (x <= DE_hi[0] && x >= DE_lo[0] && y <= DE_hi[1] && y >= DE_lo[1] && z <= DE_hi[2] && z >= DE_lo[2]) {
                  mask(i,j,k) = 1.;
+             } else if (x <= DE1_hi[0] && x >= DE1_lo[0] && y <= DE1_hi[1] && y >= DE1_lo[1] && z <= DE1_hi[2] && z >= DE1_lo[2]) {
+                 mask(i,j,k) = 1.;
              } else if (x <= SC_hi[0] && x >= SC_lo[0] && y <= SC_hi[1] && y >= SC_lo[1] && z <= SC_hi[2] && z >= SC_lo[2]) {
                  mask(i,j,k) = 2.;
                 if (x <= Channel_hi[0] && x >= Channel_lo[0] && y <= Channel_hi[1] && y >= Channel_lo[1] && z <= Channel_hi[2] && z >= Channel_lo[2]){
@@ -218,7 +220,8 @@ void InitializeMaterialMask(c_FerroX& rFerroX, const Geometry& geom, MultiFab& M
     for (MFIter mfi(MaterialMask, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const auto& mask_arr = MaterialMask.array(mfi);
-        const auto& bx = mfi.tilebox();
+       // const auto& bx = mfi.tilebox();
+        const Box& bx = mfi.growntilebox(MaterialMask.nGrow());
 
 	std::string m_mask_s;
 	std::unique_ptr<amrex::Parser> m_mask_parser;

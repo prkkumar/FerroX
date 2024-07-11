@@ -145,6 +145,7 @@ void main_main (c_FerroX& rFerroX)
     PoissonPhi.setVal(0.);
     PoissonRHS.setVal(0.);
     tphaseMask.setVal(0.);
+    MaterialMask.setVal(0.);
     angle_alpha.setVal(0.);
     angle_beta.setVal(0.);
     angle_theta.setVal(0.);

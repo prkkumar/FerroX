@@ -184,9 +184,11 @@ int FerroX::plot_PhiDiff;
 
 // multimaterial stack geometry
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::DE_lo;
+AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::DE1_lo;
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::FE_lo;
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::SC_lo;
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::DE_hi;
+AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::DE1_hi;
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::FE_hi;
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::SC_hi;
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> FerroX::Channel_hi;
@@ -444,6 +446,18 @@ void InitializeFerroXNamespace(const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM
      if (pp.queryarr("DE_hi",temp)) {
          for (int i=0; i<AMREX_SPACEDIM; ++i) {
              DE_hi[i] = temp[i];
+         }
+     }
+
+     if (pp.queryarr("DE1_lo",temp)) {
+         for (int i=0; i<AMREX_SPACEDIM; ++i) {
+             DE1_lo[i] = temp[i];
+         }
+     }
+
+     if (pp.queryarr("DE1_hi",temp)) {
+         for (int i=0; i<AMREX_SPACEDIM; ++i) {
+             DE1_hi[i] = temp[i];
          }
      }
 
