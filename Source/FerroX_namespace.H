@@ -82,6 +82,7 @@ namespace FerroX {
     extern AMREX_GPU_MANAGED int mlmg_verbosity;
 
     extern AMREX_GPU_MANAGED int TimeIntegratorOrder;
+    extern AMREX_GPU_MANAGED int use_sundials;
 
     extern AMREX_GPU_MANAGED amrex::Real delta;
 

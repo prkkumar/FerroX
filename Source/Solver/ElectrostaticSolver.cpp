@@ -526,7 +526,7 @@ void SetPhiBC_z(MultiFab& PoissonPhi, const amrex::GpuArray<int, AMREX_SPACEDIM>
 void CheckSteadyState(MultiFab& PoissonPhi, MultiFab& PoissonPhi_Old, MultiFab& Phidiff, Real phi_tolerance, int step, int& steady_state_step, int& inc_step)
 {
 
-        Real phi_max = PoissonPhi_Old.norm0();
+        Real phi_max = PoissonPhi.norm0();
 
         for (MFIter mfi(PoissonPhi); mfi.isValid(); ++mfi)
         {   

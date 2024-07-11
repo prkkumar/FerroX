@@ -6,6 +6,10 @@
 #include <AMReX_MLEBABecLap.H>
 #endif
 
+#ifdef AMREX_USE_SUNDIALS
+#include <AMReX_TimeIntegrator.H>
+#endif
+
 #include <AMReX_MLMG.H> 
 #include <AMReX_MultiFab.H> 
 #include <AMReX_VisMF.H>
@@ -113,6 +117,7 @@ void main_main (c_FerroX& rFerroX)
     MultiFab PoissonRHS(ba, dm, 1, 0);
     MultiFab PoissonPhi(ba, dm, 1, 1);
     MultiFab PoissonPhi_Old(ba, dm, 1, 1);
+    PoissonPhi_Old.setVal(0.);
     MultiFab PoissonPhi_Prev(ba, dm, 1, 1);
     MultiFab PhiErr(ba, dm, 1, 1);
     MultiFab Phidiff(ba, dm, 1, 1);
@@ -201,19 +206,6 @@ void main_main (c_FerroX& rFerroX)
 
     //InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, geom, prob_lo, prob_hi);//old
     InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, MaterialMask, tphaseMask, n_cell, geom, prob_lo, prob_hi);//mask based
-    
-#ifdef AMREX_USE_EB
-    ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
-                   P_old, charge_den, e_den, hole_den, MaterialMask, 
-                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
-#else
-    ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
-                   P_old, charge_den, e_den, hole_den, MaterialMask, 
-                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
-#endif
-
-    // Calculate E from Phi
-    ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 
     // Write a plotfile of the initial data if plot_int > 0
     if (plot_int > 0)
@@ -231,76 +223,185 @@ void main_main (c_FerroX& rFerroX)
     int num_Vapp = 0;
     Real tiny = 1.e-6;    
  
+#ifdef AMREX_USE_SUNDIALS
+//
+//    std::string theStrategy;
+//    amrex::ParmParse pp("integration.sundials");
+//    pp.get("strategy", theStrategy);
+//
+    amrex::Vector<MultiFab> vP_old(AMREX_SPACEDIM);
+    amrex::Vector<MultiFab> vP_new(AMREX_SPACEDIM);
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        vP_old[idim] = MultiFab(P_old[idim],amrex::make_alias,0,P_old[idim].nComp());
+        vP_new[idim] = MultiFab(P_new[idim],amrex::make_alias,0,P_new[idim].nComp());
+    }
+    
+    TimeIntegrator<Vector<MultiFab> > integrator(vP_old);
+
+#endif
+
     for (int step = 1; step <= nsteps; ++step)
     {
         Real step_strt_time = ParallelDescriptor::second();
 
-        // compute f^n = f(P^n,Phi^n)
-        CalculateTDGL_RHS(GL_rhs, P_old, E, Gamma, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+	if (!use_sundials) {
 
-        // P^{n+1,*} = P^n + dt * f^n
-        for (int i = 0; i < 3; i++){
-            MultiFab::LinComb(P_new_pre[i], 1.0, P_old[i], 0, dt, GL_rhs[i], 0, 0, 1, Nghost);
-            P_new_pre[i].FillBoundary(geom.periodicity()); 
-        }  
-	
 #ifdef AMREX_USE_EB
-        ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
-                   P_new_pre, charge_den, e_den, hole_den, MaterialMask, 
-                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+            ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr,
+                              P_old, charge_den, e_den, hole_den, MaterialMask,
+                              angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 #else
-        ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
-                   P_new_pre, charge_den, e_den, hole_den, MaterialMask, 
-                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
-#endif
-        
-        if (TimeIntegratorOrder == 1) {
-
-            // copy new solution into old solution
-            for (int i = 0; i < 3; i++){
-                MultiFab::Copy(P_old[i], P_new_pre[i], 0, 0, 1, 0);
-                // fill periodic ghost cells
-                P_old[i].FillBoundary(geom.periodicity());
-                P_new_pre[i].FillBoundary(geom.periodicity());
-            }
-            
-        } else {
-        
-            // compute f^{n+1,*} = f(P^{n+1,*},Phi^{n+1,*})
-            CalculateTDGL_RHS(GL_rhs_pre, P_new_pre, E, Gamma, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
-
-            // P^{n+1} = P^n + dt/2 * f^n + dt/2 * f^{n+1,*}
-            for (int i = 0; i < 3; i++){
-                MultiFab::LinComb(GL_rhs_avg[i], 0.5, GL_rhs[i], 0, 0.5, GL_rhs_pre[i], 0, 0, 1, Nghost);    
-                MultiFab::LinComb(P_new[i], 1.0, P_old[i], 0, dt, GL_rhs_avg[i], 0, 0, 1, Nghost);
-            }
-        
-#ifdef AMREX_USE_EB
-            ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
-                   P_new, charge_den, e_den, hole_den, MaterialMask, 
-                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
-#else
-            ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
-                   P_new, charge_den, e_den, hole_den, MaterialMask, 
-                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+            ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr,
+                           P_old, charge_den, e_den, hole_den, MaterialMask,
+                           angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 #endif
 
-            // copy new solution into old solution
+            // Calculate E from Phi
+            ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+
+            // compute f^n = f(P^n,Phi^n)
+            CalculateTDGL_RHS(GL_rhs, P_old, E, Gamma, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+
+            // P^{n+1,*} = P^n + dt * f^n
             for (int i = 0; i < 3; i++){
-                MultiFab::Copy(P_old[i], P_new[i], 0, 0, 1, 0);
-                // fill periodic ghost cells
-                P_old[i].FillBoundary(geom.periodicity());
+                MultiFab::LinComb(P_new_pre[i], 1.0, P_old[i], 0, dt, GL_rhs[i], 0, 0, 1, Nghost);
+                P_new_pre[i].FillBoundary(geom.periodicity()); 
             }
-    	}
+        	
+            if (TimeIntegratorOrder == 1) {
+
+                // copy new solution into old solution
+                for (int i = 0; i < 3; i++){
+                    MultiFab::Copy(P_old[i], P_new_pre[i], 0, 0, 1, 0);
+                    // fill periodic ghost cells
+                    P_old[i].FillBoundary(geom.periodicity());
+                }
+
+            } else {
+
+#ifdef AMREX_USE_EB
+                ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr,
+                                  P_new_pre, charge_den, e_den, hole_den, MaterialMask,
+                                  angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+#else
+                ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr,
+                               P_new_pre, charge_den, e_den, hole_den, MaterialMask,
+                               angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+#endif
+
+                //update E using PoissonPhi computed with P_new_pre
+                ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+
+                // compute f^{n+1,*} = f(P^{n+1,*},Phi^{n+1,*})
+                CalculateTDGL_RHS(GL_rhs_pre, P_new_pre, E, Gamma, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+
+                // P^{n+1} = P^n + dt/2 * f^n + dt/2 * f^{n+1,*}
+                for (int i = 0; i < 3; i++){
+                    MultiFab::LinComb(GL_rhs_avg[i], 0.5, GL_rhs[i], 0, 0.5, GL_rhs_pre[i], 0, 0, 1, Nghost);
+                    MultiFab::LinComb(P_new[i], 1.0, P_old[i], 0, dt, GL_rhs_avg[i], 0, 0, 1, Nghost);
+                }
+
+                // copy new solution into old solution
+                for (int i = 0; i < 3; i++){
+                    MultiFab::Copy(P_old[i], P_new[i], 0, 0, 1, 0);
+                    // fill periodic ghost cells
+                    P_old[i].FillBoundary(geom.periodicity());
+                }
+            }
+		
+	} else { //using sundials
+
+#ifdef AMREX_USE_SUNDIALS
+		// Create a RHS source function we will integrate
+            	// for MRI this represents the slow processes
+            	auto rhs_fun = [&](Vector<MultiFab>& rhs, const Vector<MultiFab>& state, const Real ) {
+                
+                // User function to calculate the rhs MultiFab given the state MultiFab
+                for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                    rhs[idim].setVal(0.);
+                } 
+
+	        //alias rhs and state from vector of MultiFabs amrex::Vector<MultiFab> into Array<MultiFab, AMREX_SPACEDIM>
+		//This is needed since CalculateH_* and Compute_LLG_RHS function take Array<MultiFab, AMREX_SPACEDIM> as input param
+
+                Array<MultiFab, AMREX_SPACEDIM> ar_rhs{AMREX_D_DECL(MultiFab(rhs[0],amrex::make_alias,0,rhs[0].nComp()),
+		                                                    MultiFab(rhs[1],amrex::make_alias,0,rhs[1].nComp()),
+			       			                    MultiFab(rhs[2],amrex::make_alias,0,rhs[2].nComp()))};
+
+                Array<MultiFab, AMREX_SPACEDIM> ar_state{AMREX_D_DECL(MultiFab(state[0],amrex::make_alias,0,state[0].nComp()),
+                                                                      MultiFab(state[1],amrex::make_alias,0,state[1].nComp()),
+                                                                      MultiFab(state[2],amrex::make_alias,0,state[2].nComp()))};
+
+		for (int comp = 0; comp < 3; comp++) {
+                    ar_state[comp].FillBoundary(geom.periodicity());
+		}
+
+#ifdef AMREX_USE_EB
+                ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr,
+                                  ar_state, charge_den, e_den, hole_den, MaterialMask, 
+                                  angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+#else
+                ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr,
+                               ar_state, charge_den, e_den, hole_den, MaterialMask, 
+                               angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+#endif
+
+                ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+
+                // Compute f^n = f(P^n, E^n) 
+        	CalculateTDGL_RHS(ar_rhs, ar_state, E, Gamma, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+
+
+            };
+
+                /*
+	    // Create a function to call after updating a state
+            auto post_update_fun = [&](Vector<MultiFab>& state, const Real ) {
+               
+                Array<MultiFab, AMREX_SPACEDIM> ar_state{AMREX_D_DECL(MultiFab(state[0],amrex::make_alias,0,state[0].nComp()),
+		                                                      MultiFab(state[1],amrex::make_alias,0,state[1].nComp()),
+			       			                      MultiFab(state[2],amrex::make_alias,0,state[2].nComp()))};
+
+	    	// fill interior and periodic ghost cells
+		for (int comp = 0; comp < 3; comp++) {
+                    ar_state[comp].FillBoundary(geom.periodicity());
+		}
+            };
+                */
+
+	    // Attach the right hand side and post-update functions
+            // to the integrator
+            integrator.set_rhs(rhs_fun);
+//            integrator.set_post_step_action(post_update_fun);
+
+            integrator.set_time_step(dt);
+            // integrate forward one step from `time` by `dt` to fill S_new
+            integrator.advance(vP_old, vP_new, time, dt);
+
+#endif
+
+//#ifdef AMREX_USE_EB
+//
+//            ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr,
+//        	P_new, charge_den, e_den, hole_den, MaterialMask, 
+//        	angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+//#else
+//             ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr,
+//        	P_new, charge_den, e_den, hole_den, MaterialMask, 
+//        	angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+//#endif
+            // copy new solution into old solution
+            for (int i = 0; i < 3; i++) {
+        	MultiFab::Copy(P_old[i], P_new[i], 0, 0, 1, 1);
+        	P_old[i].FillBoundary(geom.periodicity());
+            }
+	}
 
         // Check if steady state has reached 
-        CheckSteadyState(PoissonPhi, PoissonPhi_Old, Phidiff, phi_tolerance, step, steady_state_step, inc_step);
+        CheckSteadyState(PoissonPhi, PoissonPhi_Old, Phidiff, phi_tolerance, step, steady_state_step, inc_step); // Calculate E from Phi
+        ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 
-	    // Calculate E from Phi
-	    ComputeEfromPhi(PoissonPhi, E, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
-
-
-	    Real step_stop_time = ParallelDescriptor::second() - step_strt_time;
+        Real step_stop_time = ParallelDescriptor::second() - step_strt_time;
         ParallelDescriptor::ReduceRealMax(step_stop_time);
 
         amrex::Print() << "Advanced step " << step << " in " << step_stop_time << " seconds\n";
@@ -342,11 +443,11 @@ void main_main (c_FerroX& rFerroX)
 #endif
 
 #ifdef AMREX_USE_EB
-           ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
+           ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr,
                    P_old, charge_den, e_den, hole_den, MaterialMask, 
                    angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 #else
-           ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
+           ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr,
                    P_old, charge_den, e_den, hole_den, MaterialMask, 
                    angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 #endif
