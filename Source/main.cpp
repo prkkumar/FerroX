@@ -202,7 +202,8 @@ void main_main (c_FerroX& rFerroX)
 
     //InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, geom, prob_lo, prob_hi);//old
     InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, MaterialMask, tphaseMask, n_cell, geom, prob_lo, prob_hi);//mask based
-    
+    SetNucleation(P_old, MaterialMask, n_cell);
+
 #ifdef AMREX_USE_EB
     ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
                    P_old, charge_den, e_den, hole_den, MaterialMask, 
@@ -245,6 +246,7 @@ void main_main (c_FerroX& rFerroX)
             P_new_pre[i].FillBoundary(geom.periodicity()); 
         }  
 	
+
 #ifdef AMREX_USE_EB
         ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
                    P_new_pre, charge_den, e_den, hole_den, MaterialMask, 
@@ -264,6 +266,7 @@ void main_main (c_FerroX& rFerroX)
                 P_old[i].FillBoundary(geom.periodicity());
                 P_new_pre[i].FillBoundary(geom.periodicity());
             }
+            SetNucleation(P_old, MaterialMask, n_cell);
             
         } else {
         

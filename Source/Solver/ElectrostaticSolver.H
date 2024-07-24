@@ -63,6 +63,7 @@ void ComputePoissonRHS_Newton(MultiFab& PoissonRHS,
                               MultiFab& alpha_cc);
 
 void SetPhiBC_z(MultiFab& PossonPhi, const amrex::GpuArray<int, AMREX_SPACEDIM>& n_cell, const Geometry& geom);
+//void SetPhiBC_z(MultiFab& PoissonPhi, Array<MultiFab, AMREX_SPACEDIM> &P_old, MultiFab& MaterialMask, const amrex::GpuArray<int, AMREX_SPACEDIM>& n_cell, const Geometry& geom);
 
 void SetPoissonBC(c_FerroX& rFerroX, std::array<std::array<amrex::LinOpBCType,AMREX_SPACEDIM>,2>& LinOpBCType_2d, bool& all_homogeneous_boundaries, bool& some_functionbased_inhomogeneous_boundaries, bool& some_constant_inhomogeneous_boundaries);
 
@@ -70,6 +71,7 @@ void Fill_Constant_Inhomogeneous_Boundaries(c_FerroX& rFerroX, MultiFab& Poisson
 void Fill_FunctionBased_Inhomogeneous_Boundaries(c_FerroX& rFerroX, MultiFab& PoissonPhi, amrex::Real& time);
 
 void CheckSteadyState(MultiFab& PoissonPhi, MultiFab& PoissonPhi_Old, MultiFab& Phidiff, Real phi_tolerance, int step, int& steady_state_step, int& inc_step);
+void SetNucleation(Array<MultiFab, AMREX_SPACEDIM> &P_old, MultiFab& NucleationMask, const amrex::GpuArray<int, AMREX_SPACEDIM>& n_cell);
 void SetupMLMG(std::unique_ptr<amrex::MLMG>& pMLMG, 
         std::unique_ptr<amrex::MLABecLaplacian>& p_mlabec,
         std::array<std::array<amrex::LinOpBCType,AMREX_SPACEDIM>,2>& LinOpBCType_2d,
