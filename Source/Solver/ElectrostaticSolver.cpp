@@ -3,7 +3,7 @@
 #include "ChargeDensity.H"
 #include "Utils/eXstaticUtils/eXstaticUtil.H"
 #include "Utils/FerroXUtils/FerroXUtil.H"
-//#include "TotalEnergyDensity.H"
+#include "TotalEnergyDensity.H"
 
 void ComputePoissonRHS(MultiFab&               PoissonRHS,
                 Array<MultiFab, AMREX_SPACEDIM> &P_old,
@@ -12,6 +12,18 @@ void ComputePoissonRHS(MultiFab&               PoissonRHS,
                 MultiFab& angle_alpha, MultiFab& angle_beta, MultiFab& angle_theta,
                 const Geometry&                 geom)
 {
+    //Real average_P_r = 0.;
+    //Real total_P_r = 0.;
+    //Real FE_index_counter = 0.;
+
+    //Compute_P_av(P_old, total_P_r, MaterialMask, FE_index_counter, average_P_r);
+
+    //Real FE_thickness = FE_hi[2] - FE_lo[2];
+    //Real one_m_theta = 1.0 - theta_dep;
+    //Real E_dep = average_P_r/(epsilonZ_fe*epsilon_0)*one_m_theta;
+  
+    //amrex::Print() << " E_dep = " << E_dep << "\n";
+    //amrex::Print() << " FE_thickness = " << FE_thickness << "\n";
     for ( MFIter mfi(PoissonRHS); mfi.isValid(); ++mfi )
         {
             const Box& bx = mfi.validbox();
@@ -73,7 +85,7 @@ void ComputePoissonRHS(MultiFab&               PoissonRHS,
                  } else { //mask(i,j,k) == 0.0 FE region
                    RHS(i,j,k) = - (R_11*DPDx(pOld_p, mask, i, j, k, dx) + R_12*DPDy(pOld_p, mask, i, j, k, dx) + R_13*DPDz(pOld_p, mask, i, j, k, dx))
                                 - (R_21*DPDx(pOld_q, mask, i, j, k, dx) + R_22*DPDy(pOld_q, mask, i, j, k, dx) + R_23*DPDz(pOld_q, mask, i, j, k, dx))
-                                - (R_31*DPDx(pOld_r, mask, i, j, k, dx) + R_32*DPDy(pOld_r, mask, i, j, k, dx) + R_33*DPDz(pOld_r, mask, i, j, k, dx));
+                                - (R_31*DPDx(pOld_r, mask, i, j, k, dx) + R_32*DPDy(pOld_r, mask, i, j, k, dx) + R_33*DPDz(pOld_r, mask, i, j, k, dx));// - E_dep*FE_thickness;
 
                  }
 
@@ -499,20 +511,46 @@ void Fill_FunctionBased_Inhomogeneous_Boundaries(c_FerroX& rFerroX, MultiFab& Po
     }
 }
 
+void SetPhiBC_z(MultiFab& PoissonPhi, Array<MultiFab, AMREX_SPACEDIM> &P_old, MultiFab& MaterialMask, const amrex::GpuArray<int, AMREX_SPACEDIM>& n_cell, const Geometry& geom)
+{
+//
+//    Real average_P_r = 0.;
+//    Real total_P_r = 0.;
+//    Real FE_index_counter = 0.;
+//
+//    Compute_P_av(P_old, total_P_r, MaterialMask, FE_index_counter, average_P_r);
+//
+//    Real FE_thickness = FE_hi[2] - FE_lo[2];
+//    Real one_m_theta = 1.0 - theta_dep;
+//    Real E_dep = -1.0*average_P_r/(epsilonZ_fe*epsilon_0)*one_m_theta;
+//    
+//    amrex::Print() << "average_P_r = " << average_P_r << ", "<< ", E_dep = " << E_dep << ", theta = " << theta_dep << ", phi_Bc_hi" << Phi_Bc_hi << "\n";
+//
+    for (MFIter mfi(PoissonPhi); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.growntilebox(1);
+
+        const Array4<Real>& Phi = PoissonPhi.array(mfi);
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+        {
+          if(k < 0) {
+            Phi(i,j,k) = Phi_Bc_lo;
+          } else if(k >= n_cell[2]){
+            amrex::Real Eg = bandgap;
+            amrex::Real Chi = affinity;
+            amrex::Real phi_ref = Chi + 0.5*Eg + 0.5*kb*T*log(Nc/Nv)/q;  
+            amrex::Real phi_m = use_work_function ? metal_work_function : phi_ref; //in eV When not used, applied voltgae is set as the potential on the metal interface 
+            Phi(i,j,k) = (Phi_Bc_hi - (phi_m - phi_ref))*theta_dep;//  - E_dep*FE_thickness; //multiplying by theta_dep
+	    //if(i == 5 && j == 5) amrex::Print() << "Phi(i,j,k) = "<< Phi(i,j,k) << std::endl;
+          }
+        });
+    }
+    PoissonPhi.FillBoundary(geom.periodicity());
+}
+
 void SetPhiBC_z(MultiFab& PoissonPhi, const amrex::GpuArray<int, AMREX_SPACEDIM>& n_cell, const Geometry& geom)
 {
-
-    //Real average_P_r = 0.;
-    //Real total_P_r = 0.;
-    //Real FE_index_counter = 0.;
-
-    //Compute_P_av(P_old, total_P_r, MaterialMask, FE_index_counter, average_P_r);
-
-    //Real FE_thickness = FE_hi[2] - FE_lo[2];
-    //Real one_m_theta = 1.0 - theta_dep;
-    //Real E_dep = average_P_r/(epsilonZ_fe*epsilon_0)*one_m_theta;
-    //
-    //amrex::Print() << "average_P_r = " << average_P_r << ", "<< ", E_dep = " << E_dep << "\n";
 
     for (MFIter mfi(PoissonPhi); mfi.isValid(); ++mfi)
     {
@@ -529,7 +567,7 @@ void SetPhiBC_z(MultiFab& PoissonPhi, const amrex::GpuArray<int, AMREX_SPACEDIM>
             amrex::Real Chi = affinity;
             amrex::Real phi_ref = Chi + 0.5*Eg + 0.5*kb*T*log(Nc/Nv)/q;  
             amrex::Real phi_m = use_work_function ? metal_work_function : phi_ref; //in eV When not used, applied voltgae is set as the potential on the metal interface 
-            Phi(i,j,k) = (Phi_Bc_hi - (phi_m - phi_ref))*theta_dep;// + E_dep*FE_thickness; //multiplying by theta_dep
+            Phi(i,j,k) = (Phi_Bc_hi - (phi_m - phi_ref));
 	    //if(i == 5 && j == 5) amrex::Print() << "Phi(i,j,k) = "<< Phi(i,j,k) << std::endl;
           }
         });
@@ -573,17 +611,31 @@ void SetNucleation(Array<MultiFab, AMREX_SPACEDIM> &P_old, MultiFab& NucleationM
         {
                if (mask(i,j,k) == 0.) {
                    if (prob_type == 1) {  //2D
-
-                     pOld_p(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[0]*noise_amplitude;
-                     pOld_q(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[1]*noise_amplitude;
-                     pOld_r(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[2]*noise_amplitude;
-
+		       if (rng[i + k*n_cell[2]] <= 0.02){
+                           pOld_p(i,j,k) = Remnant_P[0];
+                           pOld_q(i,j,k) = Remnant_P[1];
+                           pOld_r(i,j,k) = Remnant_P[2];
+		       } else if (rng[i + k*n_cell[2]] <= 0.04){
+                           pOld_p(i,j,k) = -Remnant_P[0];
+                           pOld_q(i,j,k) = -Remnant_P[1];
+                           pOld_r(i,j,k) = -Remnant_P[2];
+		       } else { 
+                           pOld_p(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[0]*noise_amplitude;
+                           pOld_q(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[1]*noise_amplitude;
+                           pOld_r(i,j,k) += (-1.0 + 2.0*rng[i + k*n_cell[2]])*Remnant_P[2]*noise_amplitude;
+		       }
                    } else if (prob_type == 2) { //3D
-
-                     pOld_p(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[0]*noise_amplitude;
-                     pOld_q(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[1]*noise_amplitude;
-                     pOld_r(i,j,k) += (-1.0 + 2.0*Random(engine))*Remnant_P[2]*noise_amplitude;
-                   }
+                       Real rand = Random(engine);
+		       if (rand <= 0.04) {
+                          pOld_p(i,j,k) = Remnant_P[0];
+                          pOld_q(i,j,k) = Remnant_P[1];
+                          pOld_r(i,j,k) = Remnant_P[2];
+		       } else {
+                          pOld_p(i,j,k) += (-1.0 + 2.0*rand)*Remnant_P[0]*noise_amplitude;
+                          pOld_q(i,j,k) += (-1.0 + 2.0*rand)*Remnant_P[1]*noise_amplitude;
+                          pOld_r(i,j,k) += (-1.0 + 2.0*rand)*Remnant_P[2]*noise_amplitude;
+                       }
+		   }
               }
         });
     }
@@ -631,6 +683,8 @@ void SetupMLMG(std::unique_ptr<amrex::MLMG>& pMLMG,
         std::array<std::array<amrex::LinOpBCType,AMREX_SPACEDIM>,2>& LinOpBCType_2d,
         const amrex::GpuArray<int, AMREX_SPACEDIM>& n_cell,
         std::array< MultiFab, AMREX_SPACEDIM >& beta_face,
+	Array<MultiFab, AMREX_SPACEDIM>& P_old,
+	MultiFab&      MaterialMask,
         c_FerroX& rFerroX, MultiFab& PoissonPhi, amrex::Real& time, amrex::LPInfo& info)
  {
     auto& rGprop = rFerroX.get_GeometryProperties();
@@ -664,7 +718,8 @@ void SetupMLMG(std::unique_ptr<amrex::MLMG>& pMLMG,
     PoissonPhi.FillBoundary(geom.periodicity());
 
     // set Dirichlet BC by reading in the ghost cell values
-    SetPhiBC_z(PoissonPhi, n_cell, geom); 
+    SetPhiBC_z(PoissonPhi, n_cell, geom);
+    //SetPhiBC_z(PoissonPhi, P_old, MaterialMask, n_cell, geom); 
     p_mlabec->setLevelBC(amrlev, &PoissonPhi);
     
     // (A*alpha_cc - B * div beta grad) phi = rhs
@@ -756,7 +811,8 @@ void ComputePhi_Rho(std::unique_ptr<amrex::MLMG>& pMLMG,
 	         MultiFab&            MaterialMask,
              MultiFab& angle_alpha, MultiFab& angle_beta, MultiFab& angle_theta,
              const          Geometry& geom,
-	         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_lo,
+	     const amrex::GpuArray<int, AMREX_SPACEDIM>& n_cell,
+	     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_lo,
              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_hi)
 
 {
@@ -781,6 +837,8 @@ void ComputePhi_Rho(std::unique_ptr<amrex::MLMG>& pMLMG,
 
         //Initial guess for phi
         PoissonPhi.setVal(0.);
+        SetPhiBC_z(PoissonPhi, n_cell, geom); 
+        //SetPhiBC_z(PoissonPhi, P_old, MaterialMask, n_cell, geom); 
 
         //Poisson Solve
         pMLMG->solve({&PoissonPhi}, {&PoissonRHS}, 1.e-10, -1);

@@ -191,7 +191,7 @@ void main_main (c_FerroX& rFerroX)
     int linop_maxorder = 2;
     int amrlev = 0; //refers to the setcoarsest level of the solve
 
-    SetupMLMG(pMLMG, p_mlabec, LinOpBCType_2d, n_cell, beta_face, rFerroX, PoissonPhi, time, info);
+    SetupMLMG(pMLMG, p_mlabec, LinOpBCType_2d, n_cell, beta_face, P_old, MaterialMask, rFerroX, PoissonPhi, time, info);
 
 #ifdef AMREX_USE_EB
     std::unique_ptr<amrex::MLEBABecLap> p_mlebabec;
@@ -211,7 +211,7 @@ void main_main (c_FerroX& rFerroX)
 #else
     ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
                    P_old, charge_den, e_den, hole_den, MaterialMask, 
-                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+                   angle_alpha, angle_beta, angle_theta, geom, n_cell, prob_lo, prob_hi);
 #endif
 
     // Calculate E from Phi
@@ -254,7 +254,7 @@ void main_main (c_FerroX& rFerroX)
 #else
         ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
                    P_new_pre, charge_den, e_den, hole_den, MaterialMask, 
-                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+                   angle_alpha, angle_beta, angle_theta, geom,  n_cell, prob_lo, prob_hi);
 #endif
         
         if (TimeIntegratorOrder == 1) {
@@ -286,7 +286,7 @@ void main_main (c_FerroX& rFerroX)
 #else
             ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
                    P_new, charge_den, e_den, hole_den, MaterialMask, 
-                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+                   angle_alpha, angle_beta, angle_theta, geom,  n_cell, prob_lo, prob_hi);
 #endif
 
             // copy new solution into old solution
@@ -336,6 +336,7 @@ void main_main (c_FerroX& rFerroX)
             amrex::Print() << "step = " << step << ", Phi_Bc_hi = " << Phi_Bc_hi << ", num_Vapp = " << num_Vapp << ", sign = " << sign << std::endl;
 
             // Set Dirichlet BC for Phi in z
+            //SetPhiBC_z(PoissonPhi, P_old, MaterialMask, n_cell, geom);
             SetPhiBC_z(PoissonPhi, n_cell, geom);
 
            // set Dirichlet BC by reading in the ghost cell values
@@ -352,7 +353,7 @@ void main_main (c_FerroX& rFerroX)
 #else
            ComputePhi_Rho(pMLMG, p_mlabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
                    P_old, charge_den, e_den, hole_den, MaterialMask, 
-                   angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+                   angle_alpha, angle_beta, angle_theta, geom,  n_cell, prob_lo, prob_hi);
 #endif
            
         }//end inc_step	

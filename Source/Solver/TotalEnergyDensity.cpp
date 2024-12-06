@@ -14,17 +14,17 @@ void CalculateTDGL_RHS(Array<MultiFab, AMREX_SPACEDIM> &GL_rhs,
 		const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_lo,
                 const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_hi)
 {
-        Real average_P_r = 0.;
-        Real total_P_r = 0.;
-        Real FE_index_counter = 0.;
-
-        Compute_P_av(P_old, total_P_r, MaterialMask, FE_index_counter, average_P_r);
-
-        //Calculate integrated electrode charge (Qe) based on eq 13 of https://pubs.aip.org/aip/jap/article/44/8/3379/6486/Depolarization-fields-in-thin-ferroelectric-films
-        Real FE_thickness = FE_hi[2] - FE_lo[2];
-	Real one_m_theta = 1.0 - theta_dep;
-        Real E_dep = average_P_r/(epsilon_0*epsilonZ_fe)*one_m_theta;
-
+//        Real average_P_r = 0.;
+//        Real total_P_r = 0.;
+//        Real FE_index_counter = 0.;
+//
+//        Compute_P_av(P_old, total_P_r, MaterialMask, FE_index_counter, average_P_r);
+//
+//        //Calculate integrated electrode charge (Qe) based on eq 13 of https://pubs.aip.org/aip/jap/article/44/8/3379/6486/Depolarization-fields-in-thin-ferroelectric-films
+//        Real FE_thickness = FE_hi[2] - FE_lo[2];
+//	Real one_m_theta = 1.0 - theta_dep;
+//        Real E_dep = average_P_r/(epsilon_0*epsilonZ_fe)*one_m_theta;
+//
 	// loop over boxes
         for ( MFIter mfi(P_old[0]); mfi.isValid(); ++mfi )
         {
@@ -159,7 +159,7 @@ void CalculateTDGL_RHS(Array<MultiFab, AMREX_SPACEDIM> &GL_rhs,
                 GL_RHS_r(i,j,k) = -1.0 * Gam(i,j,k) *
                     (  dFdPr_Landau
                      + dFdPr_grad
-		     - Er(i,j,k) + E_dep
+		     - Er(i,j,k) //+ E_dep
                     );
 
                 if (is_polarization_scalar == 1){
