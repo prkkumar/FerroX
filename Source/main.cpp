@@ -66,7 +66,21 @@ void main_main (c_FerroX& rFerroX)
     // Ncomp = number of components for each array
     int Ncomp = 1;
 
-    MultiFab Gamma(ba, dm, Ncomp, Nghost);
+    MultiFab BigGamma(ba, dm, Ncomp, Nghost);
+    MultiFab alpha(ba, dm, Ncomp, Nghost);
+    MultiFab beta(ba, dm, Ncomp, Nghost);
+    MultiFab gamma(ba, dm, Ncomp, Nghost);
+    MultiFab epsilonX_fe(ba, dm, Ncomp, Nghost);
+    MultiFab epsilonZ_fe(ba, dm, Ncomp, Nghost);
+    MultiFab epsilon_de(ba, dm, Ncomp, Nghost);
+    MultiFab epsilon_si(ba, dm, Ncomp, Nghost);
+    MultiFab g11(ba, dm, Ncomp, Nghost);
+    MultiFab g44(ba, dm, Ncomp, Nghost);
+    MultiFab g44_p(ba, dm, Ncomp, Nghost);
+    MultiFab g12(ba, dm, Ncomp, Nghost);
+    MultiFab alpha_12(ba, dm, Ncomp, Nghost);
+    MultiFab alpha_112(ba, dm, Ncomp, Nghost);
+    MultiFab alpha_123(ba, dm, Ncomp, Nghost);
 
     Array<MultiFab, AMREX_SPACEDIM> P_old;
     for (int dir = 0; dir < AMREX_SPACEDIM; dir++)
@@ -146,12 +160,56 @@ void main_main (c_FerroX& rFerroX)
     PoissonRHS.setVal(0.);
     tphaseMask.setVal(0.);
     MaterialMask.setVal(0.);
+    BigGamma.setVal(0.);
+    alpha.setVal(0.);
+    beta.setVal(0.);
+    gamma.setVal(0.);
+    epsilonX_fe.setVal(0.);
+    epsilonZ_fe.setVal(0.);
+    epsilon_de.setVal(0.);
+    epsilon_si.setVal(0.);
+    g11.setVal(0.);
+    g44.setVal(0.);
+    g44_p.setVal(0.);
+    g12.setVal(0.);
+    alpha_12.setVal(0.);
+    alpha_112.setVal(0.);
+    alpha_123.setVal(0.);
     angle_alpha.setVal(0.);
     angle_beta.setVal(0.);
     angle_theta.setVal(0.);
 
     //Initialize material mask
     InitializeMaterialMask(MaterialMask, geom, prob_lo, prob_hi);
+    // Initialize material properties
+    Initialize_MaterialProperties(rFerroX, geom, 
+                                   BigGamma,
+                                   alpha, 
+                                   beta, 
+                                   gamma, 
+                                   epsilonX_fe, 
+                                   epsilonZ_fe, 
+                                   epsilon_de, 
+                                   epsilon_si, 
+                                   g11, 
+                                   g44, 
+                                   g44_p, 
+                                   g12, 
+                                   alpha_12, 
+                                   alpha_112, 
+                                   alpha_123);
+
+    //check hardswitch_ratio and nucleation_ratio
+    if (hardswitch_ratio > 1.0 || nucleation_ratio > 1.0 || (hardswitch_ratio + nucleation_ratio) > 1.0) {
+        amrex::Abort("ERROR: hardswitch_ratio, nucleation_ratio, or their sum exceeds 1.0. Please check input parameters.");
+    }
+    
+    // define hard to switch spots with larger alpha value
+    if(hardswitch_flag == 1){
+        printf("Set HardSwitch with ratio of:%g, with hardswitch_alpha_ratio:%g \n", hardswitch_ratio, hardswitch_alpha_ratio);
+        SetHardToSwitchNucleation(alpha, MaterialMask, n_cell, hardswitch_ratio, hardswitch_alpha_ratio);
+    }
+
     //InitializeMaterialMask(rFerroX, geom, MaterialMask);
     if(Coordinate_Transformation == 1){
        Initialize_tphase_Mask(rFerroX, geom, tphaseMask);
@@ -179,7 +237,7 @@ void main_main (c_FerroX& rFerroX)
                  beta_face[2].define(convert(ba,IntVect(AMREX_D_DECL(0,0,1))), dm, 1, 0););
 
     // set cell-centered beta coefficient to permittivity based on mask
-    InitializePermittivity(LinOpBCType_2d, beta_cc, MaterialMask, tphaseMask, n_cell, geom, prob_lo, prob_hi);
+    InitializePermittivity(LinOpBCType_2d, beta_cc, epsilonX_fe, epsilon_de, epsilon_si, MaterialMask, tphaseMask, n_cell, geom, prob_lo, prob_hi);
     eXstatic_MFab_Util::AverageCellCenteredMultiFabToCellFaces(beta_cc, beta_face);
     
     // time = starting time in the simulation
@@ -201,8 +259,11 @@ void main_main (c_FerroX& rFerroX)
     // INITIALIZE P in FE and rho in SC regions
 
     //InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, geom, prob_lo, prob_hi);//old
-    InitializePandRho(P_old, Gamma, charge_den, e_den, hole_den, MaterialMask, tphaseMask, n_cell, geom, prob_lo, prob_hi);//mask based
-    SetNucleation(P_old, MaterialMask, n_cell);
+    InitializePandRho(P_old, BigGamma, charge_den, e_den, hole_den, MaterialMask, tphaseMask, n_cell, geom, prob_lo, prob_hi);//mask based
+    if(nucleation_flag == 1){
+        printf("Set Nucleation with ratio of:%g, with hardswitch_ratio:%g \n", nucleation_ratio, hardswitch_ratio);
+        SetNucleation(P_old, MaterialMask, n_cell, hardswitch_ratio, nucleation_ratio);
+    }
 
 #ifdef AMREX_USE_EB
     ComputePhi_Rho_EB(pMLMG, p_mlebabec, alpha_cc, PoissonRHS, PoissonPhi, PoissonPhi_Prev, PhiErr, 
@@ -222,7 +283,22 @@ void main_main (c_FerroX& rFerroX)
     {
         int plt_step = 0;
         WritePlotfile(rFerroX, PoissonPhi, PoissonRHS, P_old, E, hole_den, e_den, charge_den, beta_cc, 
-                      MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, Phidiff, geom, time, plt_step);
+                      MaterialMask, tphaseMask,
+                      BigGamma,
+                      alpha, 
+                      beta, 
+                      gamma, 
+                      epsilonX_fe, 
+                      epsilonZ_fe, 
+                      epsilon_de, 
+                      epsilon_si, 
+                      g11, 
+                      g44, 
+                      g44_p, 
+                      g12, 
+                      alpha_12, 
+                      alpha_112, 
+                      alpha_123, angle_alpha, angle_beta, angle_theta, Phidiff, geom, time, plt_step);
     }
 
     amrex::Print() << "\n ========= Advance Steps  ========== \n"<< std::endl;
@@ -238,7 +314,7 @@ void main_main (c_FerroX& rFerroX)
         Real step_strt_time = ParallelDescriptor::second();
 
         // compute f^n = f(P^n,Phi^n)
-        CalculateTDGL_RHS(GL_rhs, P_old, E, Gamma, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+        CalculateTDGL_RHS(GL_rhs, P_old, E, BigGamma,  alpha, beta, gamma, g11, g44, g44_p, g12, alpha_12, alpha_112, alpha_123, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 
         // P^{n+1,*} = P^n + dt * f^n
         for (int i = 0; i < 3; i++){
@@ -266,12 +342,15 @@ void main_main (c_FerroX& rFerroX)
                 P_old[i].FillBoundary(geom.periodicity());
                 P_new_pre[i].FillBoundary(geom.periodicity());
             }
-            SetNucleation(P_old, MaterialMask, n_cell);
+            if(nucleation_flag == 1){
+                printf("Set Nucleation with ratio of:%g, with hardswitch_ratio:%g \n", nucleation_ratio, hardswitch_ratio);
+                SetNucleation(P_old, MaterialMask, n_cell, hardswitch_ratio, nucleation_ratio);
+            }
             
         } else {
         
             // compute f^{n+1,*} = f(P^{n+1,*},Phi^{n+1,*})
-            CalculateTDGL_RHS(GL_rhs_pre, P_new_pre, E, Gamma, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
+            CalculateTDGL_RHS(GL_rhs_pre, P_new_pre, E, BigGamma,  alpha, beta, gamma, g11, g44, g44_p, g12, alpha_12, alpha_112, alpha_123, MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, geom, prob_lo, prob_hi);
 
             // P^{n+1} = P^n + dt/2 * f^n + dt/2 * f^{n+1,*}
             for (int i = 0; i < 3; i++){
@@ -319,7 +398,22 @@ void main_main (c_FerroX& rFerroX)
         {
             int plt_step = step;
             WritePlotfile(rFerroX, PoissonPhi, PoissonRHS, P_old, E, hole_den, e_den, charge_den, beta_cc, 
-                      MaterialMask, tphaseMask, angle_alpha, angle_beta, angle_theta, Phidiff, geom, time, plt_step);
+                      MaterialMask, tphaseMask,
+                      BigGamma,
+                      alpha, 
+                      beta, 
+                      gamma, 
+                      epsilonX_fe, 
+                      epsilonZ_fe, 
+                      epsilon_de, 
+                      epsilon_si, 
+                      g11, 
+                      g44, 
+                      g44_p, 
+                      g12, 
+                      alpha_12, 
+                      alpha_112, 
+                      alpha_123, angle_alpha, angle_beta, angle_theta, Phidiff, geom, time, plt_step);
             
         }
 
